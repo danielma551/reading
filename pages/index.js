@@ -14,6 +14,7 @@ export default function Home() {
   const [backgroundColor, setBackgroundColor] = useState('');
   const [readingGoal, setReadingGoal] = useState(400);
   const [sessionStartIndex, setSessionStartIndex] = useState(0);
+  const cardSize = 25; // 每组卡片的数量
 
   // 背景颜色选项
   const backgroundColors = {
@@ -149,6 +150,22 @@ export default function Home() {
   // 计算当前会话进度百分比
   const calculateSessionProgressPercentage = () => {
     return (calculateSessionProgress() / readingGoal) * 100;
+  };
+
+  // 计算当前卡片组的进度
+  const calculateCardGroupProgress = () => {
+    // 计算在当前25个句子组中的位置 (0-24)
+    return currentIndex % cardSize;
+  };
+
+  // 计算当前卡片组的进度百分比
+  const calculateCardGroupProgressPercentage = () => {
+    return (calculateCardGroupProgress() / (cardSize - 1)) * 100;
+  };
+
+  // 获取当前是第几组卡片
+  const getCurrentCardGroup = () => {
+    return Math.floor(currentIndex / cardSize) + 1;
   };
 
   // 开始新的阅读会话
@@ -647,6 +664,9 @@ export default function Home() {
   // 阅读目标进度条宽度
   const goalProgressWidth = `${calculateSessionProgressPercentage()}%`;
 
+  // 卡片组进度条宽度
+  const cardGroupProgressWidth = `${calculateCardGroupProgressPercentage()}%`;
+
   if (isReading && formattedText.length > 0) {
     // 苹果风格的阅读模式
     return (
@@ -762,31 +782,19 @@ export default function Home() {
           {/* 整体内容阅读进度 */}
           <div style={styles.goalProgressContainer}>
             <div style={styles.goalProgressTitle}>
-              整体阅读进度
+              卡片组进度 (每{cardSize}句)
             </div>
             <div style={styles.goalProgressBar}>
               <div 
                 style={{
                   ...styles.goalProgressBarFill,
-                  backgroundColor: isDark ? '#ff9f0a' : '#ff9500', // 使用橙色区分
-                  width: progressWidth
+                  backgroundColor: isDark ? '#ff9f0a' : '#ff9500',
+                  width: cardGroupProgressWidth
                 }}
               />
             </div>
             <div style={styles.goalProgressText}>
-              {currentIndex + 1} / {formattedText.length} 句
-              <span style={{marginLeft: '8px'}}>
-                · {Math.round(((currentIndex + 1) / formattedText.length) * 100)}%
-              </span>
-            </div>
-            
-            <div style={{
-              fontSize: '12px',
-              color: isDark ? '#86868b' : '#98989d',
-              marginTop: '4px',
-              textAlign: 'center'
-            }}>
-              {formattedText.length > 0 && `总计${formattedText.length}句，剩余${formattedText.length - (currentIndex + 1)}句`}
+              当前第{getCurrentCardGroup()}组 | 第{calculateCardGroupProgress() + 1}句 / {cardSize}句
             </div>
           </div>
           
@@ -854,7 +862,8 @@ export default function Home() {
             top: '10px',
             left: '50%',
             transform: 'translateX(-50%)',
-            width: '200px',
+            width: '80%',
+            maxWidth: '1000px',
             backgroundColor: isDark ? 'rgba(30, 30, 30, 0.7)' : 'rgba(240, 240, 240, 0.7)',
             borderRadius: '16px',
             padding: '4px 12px',
@@ -866,25 +875,39 @@ export default function Home() {
             zIndex: 3
           }}>
             <div style={{
-              fontSize: '12px',
-              fontWeight: '500',
-              color: isDark ? '#f5f5f7' : '#1d1d1f',
+              width: '100%',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
               marginBottom: '4px'
             }}>
-              {currentIndex + 1} / {formattedText.length}
+              <div style={{
+                fontSize: '12px',
+                fontWeight: '500',
+                color: isDark ? '#f5f5f7' : '#1d1d1f',
+              }}>
+                第{getCurrentCardGroup()}组 | {calculateCardGroupProgress() + 1}/{cardSize}句
+              </div>
+              <div style={{
+                fontSize: '12px',
+                color: isDark ? '#98989d' : '#8e8e93',
+              }}>
+                总进度: {calculateSessionProgress()}/{readingGoal}
+              </div>
             </div>
             <div style={{
               width: '100%',
-              height: '4px',
+              height: '6px',
               backgroundColor: isDark ? '#38383a' : '#e5e5ea',
-              borderRadius: '2px',
+              borderRadius: '3px',
               overflow: 'hidden'
             }}>
               <div style={{
                 height: '100%',
-                width: progressWidth,
+                width: cardGroupProgressWidth,
                 backgroundColor: isDark ? '#ff9f0a' : '#ff9500',
-                borderRadius: '2px'
+                borderRadius: '3px',
+                transition: 'width 0.3s ease'
               }} />
             </div>
           </div>
