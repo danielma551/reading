@@ -152,20 +152,52 @@ export default function Home() {
     return (calculateSessionProgress() / readingGoal) * 100;
   };
 
-  // 计算当前卡片组的进度
-  const calculateCardGroupProgress = () => {
-    // 计算在当前25个句子组中的位置 (0-24)
+  // 获取当前段落内的位置 (0-24)，这将用于计算当前段落内的进度
+  const getPositionInSegment = () => {
+    // 使用当前索引而不是计算的会话进度，确保准确反映当前阅读位置
     return currentIndex % cardSize;
   };
 
-  // 计算当前卡片组的进度百分比
-  const calculateCardGroupProgressPercentage = () => {
-    return (calculateCardGroupProgress() / (cardSize - 1)) * 100;
+  // 获取当前总段落数
+  const getTotalSegments = () => {
+    return Math.ceil(readingGoal / cardSize);
   };
 
-  // 获取当前是第几组卡片
-  const getCurrentCardGroup = () => {
+  // 获取当前是第几个段落（从1开始）
+  const getCurrentSegmentNumber = () => {
     return Math.floor(currentIndex / cardSize) + 1;
+  };
+
+  // 获取当前段落已读句子数
+  const getSentencesInCurrentSegment = () => {
+    return getPositionInSegment() + 1;
+  };
+
+  // 获取剩余总段落数
+  const getRemainingSegments = () => {
+    return getTotalSegments() - getCurrentSegmentNumber() + 1;
+  };
+
+  // 计算当前段落在剩余目标中的比例（这是关键计算）
+  const calculateSegmentInRemainingPercentage = () => {
+    // 获取剩余段落数
+    const remainingSegments = getRemainingSegments();
+    
+    // 如果是最后一段，则直接返回当前段落内的进度
+    if (remainingSegments === 1) {
+      return (getSentencesInCurrentSegment() / cardSize) * 100;
+    }
+    
+    // 获取当前段落内的进度比例
+    const currentSegmentProgress = getSentencesInCurrentSegment() / cardSize;
+    
+    // 计算这一段占剩余总段落的比例
+    return (currentSegmentProgress / remainingSegments) * 100;
+  };
+
+  // 根据currentIndex在整个文档中的位置计算总体进度
+  const calculateOverallPercentage = () => {
+    return ((currentIndex + 1) / Math.min(formattedText.length, readingGoal)) * 100;
   };
 
   // 开始新的阅读会话
@@ -664,8 +696,8 @@ export default function Home() {
   // 阅读目标进度条宽度
   const goalProgressWidth = `${calculateSessionProgressPercentage()}%`;
 
-  // 卡片组进度条宽度
-  const cardGroupProgressWidth = `${calculateCardGroupProgressPercentage()}%`;
+  // 段落进度条宽度 - 基于剩余段落的计算方式
+  const segmentProgressWidth = `${calculateSegmentInRemainingPercentage()}%`;
 
   if (isReading && formattedText.length > 0) {
     // 苹果风格的阅读模式
@@ -779,22 +811,33 @@ export default function Home() {
             )}
           </div>
           
-          {/* 整体内容阅读进度 */}
+          {/* 段落进度 */}
           <div style={styles.goalProgressContainer}>
             <div style={styles.goalProgressTitle}>
-              卡片组进度 (每{cardSize}句)
+              段落进度 (每{cardSize}句)
             </div>
             <div style={styles.goalProgressBar}>
               <div 
                 style={{
                   ...styles.goalProgressBarFill,
                   backgroundColor: isDark ? '#ff9f0a' : '#ff9500',
-                  width: cardGroupProgressWidth
+                  width: segmentProgressWidth
                 }}
               />
             </div>
             <div style={styles.goalProgressText}>
-              当前第{getCurrentCardGroup()}组 | 第{calculateCardGroupProgress() + 1}句 / {cardSize}句
+              {getSentencesInCurrentSegment()}/{cardSize} 句 · 
+              第{getCurrentSegmentNumber()}/{getTotalSegments()}段
+            </div>
+            
+            <div style={{
+              fontSize: '12px',
+              color: isDark ? '#86868b' : '#98989d',
+              marginTop: '4px',
+              textAlign: 'center'
+            }}>
+              剩余: {getRemainingSegments()}段 · 
+              当前段落占比: {Math.round(calculateSegmentInRemainingPercentage())}%
             </div>
           </div>
           
@@ -864,9 +907,9 @@ export default function Home() {
             transform: 'translateX(-50%)',
             width: '80%',
             maxWidth: '1000px',
-            backgroundColor: isDark ? 'rgba(30, 30, 30, 0.7)' : 'rgba(240, 240, 240, 0.7)',
+            backgroundColor: isDark ? 'rgba(30, 30, 30, 0.7)' : 'rgba(245, 245, 247, 0.7)',
             borderRadius: '16px',
-            padding: '4px 12px',
+            padding: '8px 16px',
             boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
             backdropFilter: 'blur(5px)',
             display: 'flex',
@@ -879,34 +922,34 @@ export default function Home() {
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: '4px'
+              marginBottom: '6px'
             }}>
               <div style={{
-                fontSize: '12px',
+                fontSize: '14px',
                 fontWeight: '500',
                 color: isDark ? '#f5f5f7' : '#1d1d1f',
               }}>
-                第{getCurrentCardGroup()}组 | {calculateCardGroupProgress() + 1}/{cardSize}句
+                第{getCurrentSegmentNumber()}/{getTotalSegments()}段 ({getSentencesInCurrentSegment()}/{cardSize}句)
               </div>
               <div style={{
-                fontSize: '12px',
+                fontSize: '14px',
                 color: isDark ? '#98989d' : '#8e8e93',
               }}>
-                总进度: {calculateSessionProgress()}/{readingGoal}
+                总进度: {Math.round(calculateOverallPercentage())}% ({currentIndex + 1}/{readingGoal})
               </div>
             </div>
             <div style={{
               width: '100%',
-              height: '6px',
+              height: '8px',
               backgroundColor: isDark ? '#38383a' : '#e5e5ea',
-              borderRadius: '3px',
+              borderRadius: '4px',
               overflow: 'hidden'
             }}>
               <div style={{
                 height: '100%',
-                width: cardGroupProgressWidth,
-                backgroundColor: isDark ? '#ff9f0a' : '#ff9500',
-                borderRadius: '3px',
+                width: segmentProgressWidth,
+                backgroundColor: '#ff9500',
+                borderRadius: '4px',
                 transition: 'width 0.3s ease'
               }} />
             </div>
