@@ -7,6 +7,8 @@ export default function Home() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isDark, setIsDark] = useState(false);
   const [fontSize, setFontSize] = useState(60);
+  const [savedTexts, setSavedTexts] = useState([]);
+  const [selectedSavedText, setSelectedSavedText] = useState(null);
 
   useEffect(() => {
     // 检测深色模式
@@ -30,18 +32,53 @@ export default function Home() {
     updateFontSize();
     window.addEventListener('resize', updateFontSize);
     
+    // 从本地存储加载保存的文本
+    try {
+      const savedData = localStorage.getItem('savedTexts');
+      if (savedData) {
+        const parsedData = JSON.parse(savedData);
+        setSavedTexts(parsedData);
+      }
+      
+      // 尝试加载上次阅读位置
+      const lastReadingState = localStorage.getItem('lastReadingState');
+      if (lastReadingState) {
+        const { textIndex, position } = JSON.parse(lastReadingState);
+        if (textIndex !== undefined && position !== undefined) {
+          setSelectedSavedText(textIndex);
+          setCurrentIndex(position);
+        }
+      }
+    } catch (error) {
+      console.error('加载保存的文本失败:', error);
+    }
+    
     return () => {
       window.removeEventListener('resize', updateFontSize);
     };
   }, []);
+
+  // 保存当前阅读位置
+  useEffect(() => {
+    if (isReading && selectedSavedText !== null) {
+      localStorage.setItem('lastReadingState', JSON.stringify({
+        textIndex: selectedSavedText,
+        position: currentIndex
+      }));
+    }
+  }, [isReading, selectedSavedText, currentIndex]);
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        setText(e.target.result);
-        formatText(e.target.result);
+        const content = e.target.result;
+        setText(content);
+        formatText(content);
+        
+        // 保存上传的文本
+        saveText(file.name, content);
       };
       reader.readAsText(file);
     }
@@ -62,9 +99,66 @@ export default function Home() {
     setFormattedText(sentences);
   };
 
+  const saveText = (name, content) => {
+    const newSavedTexts = [...savedTexts];
+    
+    // 检查是否已存在相同名称的文本
+    const existingIndex = newSavedTexts.findIndex(item => item.name === name);
+    
+    if (existingIndex >= 0) {
+      // 更新现有文本
+      newSavedTexts[existingIndex] = { name, content, date: new Date().toISOString() };
+      setSelectedSavedText(existingIndex);
+    } else {
+      // 添加新文本
+      newSavedTexts.push({ name, content, date: new Date().toISOString() });
+      setSelectedSavedText(newSavedTexts.length - 1);
+    }
+    
+    setSavedTexts(newSavedTexts);
+    
+    // 保存到本地存储
+    try {
+      localStorage.setItem('savedTexts', JSON.stringify(newSavedTexts));
+    } catch (error) {
+      console.error('保存文本失败:', error);
+    }
+  };
+
+  const loadSavedText = (index) => {
+    if (savedTexts[index]) {
+      setSelectedSavedText(index);
+      setText(savedTexts[index].content);
+      formatText(savedTexts[index].content);
+    }
+  };
+
+  const deleteSavedText = (e, index) => {
+    e.stopPropagation(); // 阻止点击事件冒泡
+    
+    const newSavedTexts = [...savedTexts];
+    newSavedTexts.splice(index, 1);
+    setSavedTexts(newSavedTexts);
+    
+    // 如果删除的是当前选中的文本，清空选择
+    if (selectedSavedText === index) {
+      setSelectedSavedText(null);
+      setText('');
+      setFormattedText([]);
+    } else if (selectedSavedText > index) {
+      // 如果删除的是当前选中文本之前的文本，调整选中索引
+      setSelectedSavedText(selectedSavedText - 1);
+    }
+    
+    // 更新本地存储
+    localStorage.setItem('savedTexts', JSON.stringify(newSavedTexts));
+  };
+
   const toggleReadingMode = () => {
     setIsReading(!isReading);
-    setCurrentIndex(0);
+    if (!isReading) {
+      setCurrentIndex(0);
+    }
   };
 
   const handlePrevious = () => {
@@ -262,6 +356,66 @@ export default function Home() {
                 拖放文件到此处，或点击选择
               </div>
             </div>
+            
+            {/* 已保存的文本列表 */}
+            {savedTexts.length > 0 && (
+              <div style={{
+                marginTop: '32px'
+              }}>
+                <h2 style={{
+                  fontSize: '16px',
+                  fontWeight: '500',
+                  marginBottom: '12px',
+                  color: isDark ? '#ccc' : '#555'
+                }}>
+                  已保存的文本
+                </h2>
+                <div style={{
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  border: `1px solid ${isDark ? '#444' : '#eee'}`,
+                  borderRadius: '8px'
+                }}>
+                  {savedTexts.map((item, index) => (
+                    <div 
+                      key={index}
+                      onClick={() => loadSavedText(index)}
+                      style={{
+                        padding: '10px 12px',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        borderBottom: index < savedTexts.length - 1 ? `1px solid ${isDark ? '#333' : '#eee'}` : 'none',
+                        backgroundColor: selectedSavedText === index ? (isDark ? '#333' : '#f5f5f5') : 'transparent',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <div style={{
+                        flex: 1,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap'
+                      }}>
+                        {item.name}
+                      </div>
+                      <button
+                        onClick={(e) => deleteSavedText(e, index)}
+                        style={{
+                          border: 'none',
+                          background: 'transparent',
+                          color: isDark ? '#999' : '#999',
+                          cursor: 'pointer',
+                          marginLeft: '8px',
+                          fontSize: '14px'
+                        }}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {formattedText.length > 0 && (
               <button
