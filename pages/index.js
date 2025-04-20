@@ -41,11 +41,15 @@ export default function Home() {
       setIsDark(true);
     }
 
-    // 设置字体大小
+    // 设置字体大小，根据屏幕宽度自动调整
     function updateFontSize() {
       const width = window.innerWidth;
-      if (width < 768) {
-        setFontSize(36);
+      if (width < 480) {
+        // 针对较小的手机屏幕
+        setFontSize(24);
+      } else if (width < 768) {
+        // 针对大一点的手机屏幕
+        setFontSize(32);
       } else if (width < 1024) {
         setFontSize(48);
       } else {
@@ -104,6 +108,47 @@ export default function Home() {
       }
     } catch (error) {
       console.error('加载保存的文本失败:', error);
+    }
+    
+    // 添加移动设备的检测
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    // 如果是移动设备，添加触摸事件处理
+    if (isMobile) {
+      const handleTouchStart = (e) => {
+        // 记录触摸起始位置
+        window.touchStartX = e.touches[0].clientX;
+      };
+      
+      const handleTouchEnd = (e) => {
+        if (!window.touchStartX) return;
+        
+        const touchEndX = e.changedTouches[0].clientX;
+        const diff = window.touchStartX - touchEndX;
+        
+        // 如果滑动距离超过50像素，根据滑动方向翻页
+        if (Math.abs(diff) > 50) {
+          if (diff > 0) {
+            // 向左滑动，下一页
+            handleNext();
+          } else {
+            // 向右滑动，上一页
+            handlePrevious();
+          }
+        }
+        
+        // 重置起始位置
+        window.touchStartX = null;
+      };
+      
+      document.addEventListener('touchstart', handleTouchStart);
+      document.addEventListener('touchend', handleTouchEnd);
+      
+      return () => {
+        window.removeEventListener('resize', updateFontSize);
+        document.removeEventListener('touchstart', handleTouchStart);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
     }
     
     return () => {
@@ -359,7 +404,12 @@ export default function Home() {
     setIsMenuOpen(!isMenuOpen);
   };
 
-  // 苹果风格样式
+  // 添加双击切换设置面板功能
+  const handleContentDoubleClick = () => {
+    toggleMenu();
+  };
+
+  // 苹果风格样式 - 添加移动端响应式样式
   const styles = {
     container: {
       height: '100vh',
@@ -369,12 +419,14 @@ export default function Home() {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       overflow: 'hidden',
       position: 'relative',
-      transition: 'background-color 0.3s ease, color 0.3s ease'
+      transition: 'background-color 0.3s ease, color 0.3s ease',
+      WebkitTapHighlightColor: 'transparent', // 防止移动端点击出现蓝色高亮
     },
     header: {
       height: '44px',
       backgroundColor: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(245, 245, 247, 0.8)',
       backdropFilter: 'blur(10px)',
+      WebkitBackdropFilter: 'blur(10px)', // 为iOS Safari添加支持
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
@@ -398,12 +450,17 @@ export default function Home() {
       transition: 'opacity 0.2s ease',
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'center'
+      justifyContent: 'center',
+      touchAction: 'manipulation', // 优化触摸事件
     },
     headerTitle: {
       fontSize: '17px',
       fontWeight: '600',
-      color: isDark ? '#f5f5f7' : '#1d1d1f'
+      color: isDark ? '#f5f5f7' : '#1d1d1f',
+      maxWidth: '60%', // 限制在移动设备上的宽度
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
     },
     contentArea: {
       position: 'absolute',
@@ -415,7 +472,8 @@ export default function Home() {
       justifyContent: 'center',
       alignItems: 'center',
       padding: '20px',
-      transition: 'opacity 0.3s ease'
+      transition: 'opacity 0.3s ease',
+      touchAction: 'pan-x pan-y', // 允许滑动但不影响点击
     },
     textContent: {
       fontSize: `${fontSize}px`,
@@ -424,7 +482,8 @@ export default function Home() {
       fontWeight: '300',
       lineHeight: '1.4',
       letterSpacing: '0.01em',
-      transition: 'all 0.3s ease'
+      transition: 'all 0.3s ease',
+      userSelect: 'none', // 防止文本选择影响滑动
     },
     clickArea: {
       position: 'absolute',
@@ -653,10 +712,12 @@ export default function Home() {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      marginBottom: '24px',
-      padding: '12px',
+      marginBottom: '20px',
+      padding: '10px',
       backgroundColor: isDark ? 'rgba(60, 60, 60, 0.5)' : 'rgba(240, 240, 240, 0.5)',
       borderRadius: '12px',
+      width: '100%',
+      maxWidth: '450px', // 适应移动端宽度
     },
     goalProgressTitle: {
       fontSize: '15px',
@@ -685,6 +746,41 @@ export default function Home() {
     goalProgressCompleted: {
       color: '#30d158',
       fontWeight: '600',
+    },
+    // 移动优化的进度指示器
+    progressIndicator: {
+      position: 'absolute',
+      top: '10px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      width: '85%', // 移动端稍微宽一点
+      maxWidth: '1000px',
+      backgroundColor: isDark ? 'rgba(30, 30, 30, 0.7)' : 'rgba(245, 245, 247, 0.7)',
+      borderRadius: '16px',
+      padding: '8px 12px', // 略微缩小内边距
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+      backdropFilter: 'blur(5px)',
+      WebkitBackdropFilter: 'blur(5px)', // 为iOS Safari添加支持
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      zIndex: 3
+    },
+    
+    // 移动设备提示信息
+    mobileHint: {
+      position: 'absolute',
+      bottom: '20px',
+      left: '0',
+      right: '0',
+      textAlign: 'center',
+      color: isDark ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.4)',
+      fontSize: '12px',
+      padding: '8px',
+      pointerEvents: 'none', // 不干扰交互
+      opacity: 0.8,
+      animation: 'fadeOut 3s forwards 2s',
+      zIndex: 2,
     },
   };
 
@@ -898,25 +994,12 @@ export default function Home() {
         </div>
 
         {/* 主内容区 */}
-        <div style={styles.contentArea}>
+        <div 
+          style={styles.contentArea}
+          onDoubleClick={handleContentDoubleClick}
+        >
           {/* 顶部永久显示的页面进度指示器 */}
-          <div style={{
-            position: 'absolute',
-            top: '10px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '80%',
-            maxWidth: '1000px',
-            backgroundColor: isDark ? 'rgba(30, 30, 30, 0.7)' : 'rgba(245, 245, 247, 0.7)',
-            borderRadius: '16px',
-            padding: '8px 16px',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-            backdropFilter: 'blur(5px)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            zIndex: 3
-          }}>
+          <div style={styles.progressIndicator}>
             <div style={{
               width: '100%',
               display: 'flex',
@@ -925,22 +1008,22 @@ export default function Home() {
               marginBottom: '6px'
             }}>
               <div style={{
-                fontSize: '14px',
+                fontSize: '12px', // 移动端字体略小
                 fontWeight: '500',
                 color: isDark ? '#f5f5f7' : '#1d1d1f',
               }}>
                 第{getCurrentSegmentNumber()}/{getTotalSegments()}段 ({getSentencesInCurrentSegment()}/{cardSize}句)
               </div>
               <div style={{
-                fontSize: '14px',
+                fontSize: '12px', // 移动端字体略小
                 color: isDark ? '#98989d' : '#8e8e93',
               }}>
-                总进度: {Math.round(calculateOverallPercentage())}% ({currentIndex + 1}/{readingGoal})
+                总进度: {Math.round(calculateOverallPercentage())}%
               </div>
             </div>
             <div style={{
               width: '100%',
-              height: '8px',
+              height: '6px', // 移动端稍微薄一点
               backgroundColor: isDark ? '#38383a' : '#e5e5ea',
               borderRadius: '4px',
               overflow: 'hidden'
@@ -957,6 +1040,11 @@ export default function Home() {
           
           <div style={styles.textContent}>
             {formattedText[currentIndex]}
+          </div>
+          
+          {/* 移动设备操作提示，3秒后淡出 */}
+          <div style={styles.mobileHint}>
+            向左/右滑动切换句子 · 双击屏幕打开设置
           </div>
         </div>
 
@@ -987,14 +1075,17 @@ export default function Home() {
     );
   }
 
-  // 苹果风格的库页面
+  // 苹果风格的库页面 - 针对移动设备优化
   return (
     <div style={styles.libraryContainer}>
       <div style={styles.libraryHeader}>
         <div style={styles.libraryTitle}>阅读器</div>
       </div>
       
-      <div style={styles.libraryContent}>
+      <div style={{
+        ...styles.libraryContent,
+        padding: '16px', // 移动端padding更小
+      }}>
         <div style={styles.card}>
           <div style={{
             display: 'flex',
@@ -1112,6 +1203,20 @@ export default function Home() {
               开始阅读
             </button>
           )}
+          
+          <style jsx global>{`
+            @keyframes fadeOut {
+              from { opacity: 0.8; }
+              to { opacity: 0; }
+            }
+            
+            /* 移动设备适配样式 */
+            @media (max-width: 480px) {
+              body {
+                overscroll-behavior: none; /* 防止iOS上的橡皮筋效果 */
+              }
+            }
+          `}</style>
         </div>
       </div>
     </div>
