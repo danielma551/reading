@@ -11,6 +11,27 @@ export default function Home() {
   const [selectedSavedText, setSelectedSavedText] = useState(null);
   const [lastPositions, setLastPositions] = useState({});
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [backgroundColor, setBackgroundColor] = useState('');
+  const [readingGoal, setReadingGoal] = useState(400);
+  const [sessionStartIndex, setSessionStartIndex] = useState(0);
+
+  // 背景颜色选项
+  const backgroundColors = {
+    light: [
+      { name: '默认', value: '#f5f5f7' },
+      { name: '米色', value: '#f8f5e4' },
+      { name: '淡蓝', value: '#f0f5fa' },
+      { name: '淡绿', value: '#f2f9f5' },
+      { name: '淡粉', value: '#fdf2f4' }
+    ],
+    dark: [
+      { name: '默认', value: '#000000' },
+      { name: '深蓝', value: '#1a1c2c' },
+      { name: '深棕', value: '#1f1b1c' },
+      { name: '深绿', value: '#0f1e1b' },
+      { name: '深紫', value: '#1a1725' }
+    ]
+  };
 
   useEffect(() => {
     // 检测深色模式
@@ -38,6 +59,8 @@ export default function Home() {
     try {
       const savedData = localStorage.getItem('savedTexts');
       const positionsData = localStorage.getItem('lastPositions');
+      const savedBackgroundColor = localStorage.getItem('backgroundColor');
+      const savedReadingGoal = localStorage.getItem('readingGoal');
       
       if (savedData) {
         const parsedData = JSON.parse(savedData);
@@ -47,6 +70,14 @@ export default function Home() {
       if (positionsData) {
         const positions = JSON.parse(positionsData);
         setLastPositions(positions);
+      }
+      
+      if (savedBackgroundColor) {
+        setBackgroundColor(savedBackgroundColor);
+      }
+
+      if (savedReadingGoal) {
+        setReadingGoal(parseInt(savedReadingGoal));
       }
       
       // 尝试加载上次阅读的文本
@@ -65,6 +96,7 @@ export default function Home() {
             const positions = JSON.parse(positionsData);
             if (positions[textIndex] !== undefined) {
               setCurrentIndex(positions[textIndex]);
+              setSessionStartIndex(positions[textIndex]);
             }
           }
         }
@@ -91,6 +123,39 @@ export default function Home() {
     }
   }, [isReading, selectedSavedText, currentIndex, lastPositions]);
 
+  // 保存背景颜色到本地存储
+  useEffect(() => {
+    if (backgroundColor) {
+      localStorage.setItem('backgroundColor', backgroundColor);
+    }
+  }, [backgroundColor]);
+
+  // 保存阅读目标到本地存储
+  useEffect(() => {
+    localStorage.setItem('readingGoal', readingGoal.toString());
+  }, [readingGoal]);
+
+  // 计算当前阅读会话的进度
+  const calculateSessionProgress = () => {
+    const sentencesRead = currentIndex - sessionStartIndex + 1;
+    return Math.min(Math.max(sentencesRead, 0), readingGoal);
+  };
+  
+  // 检查是否已达成阅读目标
+  const isGoalReached = () => {
+    return calculateSessionProgress() >= readingGoal;
+  };
+
+  // 计算当前会话进度百分比
+  const calculateSessionProgressPercentage = () => {
+    return (calculateSessionProgress() / readingGoal) * 100;
+  };
+
+  // 开始新的阅读会话
+  const startNewSession = () => {
+    setSessionStartIndex(currentIndex);
+  };
+
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
@@ -105,6 +170,19 @@ export default function Home() {
       };
       reader.readAsText(file);
     }
+  };
+
+  // 选择背景颜色
+  const selectBackgroundColor = (color) => {
+    setBackgroundColor(color);
+  };
+
+  // 获取当前应用的背景颜色
+  const getCurrentBackgroundColor = () => {
+    if (backgroundColor) {
+      return backgroundColor;
+    }
+    return isDark ? backgroundColors.dark[0].value : backgroundColors.light[0].value;
   };
 
   const formatText = (inputText) => {
@@ -209,8 +287,11 @@ export default function Home() {
   };
 
   const toggleReadingMode = () => {
+    if (!isReading) {
+      // 当开始阅读时，设置当前位置为会话起点
+      setSessionStartIndex(currentIndex);
+    }
     setIsReading(!isReading);
-    // 不再在此处重置currentIndex，保留当前位置
   };
 
   const handlePrevious = () => {
@@ -234,7 +315,7 @@ export default function Home() {
     container: {
       height: '100vh',
       width: '100vw',
-      backgroundColor: isDark ? '#000' : '#f5f5f7',
+      backgroundColor: getCurrentBackgroundColor(),
       color: isDark ? '#f5f5f7' : '#1d1d1f',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       overflow: 'hidden',
@@ -342,7 +423,7 @@ export default function Home() {
       minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column',
-      backgroundColor: isDark ? '#000' : '#f5f5f7',
+      backgroundColor: getCurrentBackgroundColor(),
       color: isDark ? '#f5f5f7' : '#1d1d1f',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       transition: 'background-color 0.3s ease, color 0.3s ease'
@@ -494,13 +575,77 @@ export default function Home() {
       fontWeight: '500',
       cursor: 'pointer',
       transition: 'background-color 0.2s ease'
-    }
+    },
+    colorOption: {
+      width: '30px',
+      height: '30px',
+      borderRadius: '50%',
+      margin: '0 8px',
+      cursor: 'pointer',
+      border: '2px solid transparent',
+      transition: 'transform 0.2s ease, border-color 0.2s ease',
+    },
+    colorOptionActive: {
+      transform: 'scale(1.1)',
+      border: '2px solid #0a84ff',
+    },
+    colorPickerContainer: {
+      display: 'flex',
+      justifyContent: 'center',
+      marginBottom: '24px',
+    },
+    colorPickerLabel: {
+      fontSize: '15px',
+      marginBottom: '12px',
+      color: isDark ? '#98989d' : '#8e8e93',
+      textAlign: 'center',
+    },
+    goalProgressContainer: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      marginBottom: '24px',
+      padding: '12px',
+      backgroundColor: isDark ? 'rgba(60, 60, 60, 0.5)' : 'rgba(240, 240, 240, 0.5)',
+      borderRadius: '12px',
+    },
+    goalProgressTitle: {
+      fontSize: '15px',
+      marginBottom: '8px',
+      color: isDark ? '#f5f5f7' : '#1d1d1f',
+      fontWeight: '500',
+    },
+    goalProgressBar: {
+      width: '100%',
+      height: '8px',
+      backgroundColor: isDark ? '#38383a' : '#e5e5ea',
+      borderRadius: '4px',
+      overflow: 'hidden',
+      marginBottom: '8px',
+    },
+    goalProgressBarFill: {
+      height: '100%',
+      backgroundColor: isGoalReached() ? '#30d158' : (isDark ? '#0a84ff' : '#06c'),
+      borderRadius: '4px',
+      transition: 'width 0.3s ease',
+    },
+    goalProgressText: {
+      fontSize: '13px',
+      color: isDark ? '#98989d' : '#8e8e93',
+    },
+    goalProgressCompleted: {
+      color: '#30d158',
+      fontWeight: '600',
+    },
   };
 
   // 阅读时的进度条宽度
   const progressWidth = formattedText.length > 0 
     ? `${((currentIndex + 1) / formattedText.length) * 100}%` 
     : '0%';
+
+  // 阅读目标进度条宽度
+  const goalProgressWidth = `${calculateSessionProgressPercentage()}%`;
 
   if (isReading && formattedText.length > 0) {
     // 苹果风格的阅读模式
@@ -538,6 +683,130 @@ export default function Home() {
             >
               切换到{isDark ? '浅色' : '深色'}模式
             </button>
+          </div>
+          
+          {/* 阅读目标设置 */}
+          <div style={{marginBottom: '24px'}}>
+            <div style={styles.colorPickerLabel}>阅读目标（句子数）</div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <button 
+                onClick={() => setReadingGoal(prev => Math.max(50, prev - 50))}
+                style={{
+                  ...styles.iconButton,
+                  fontSize: '16px'
+                }}
+              >
+                -
+              </button>
+              <div style={{
+                fontSize: '17px',
+                fontWeight: '600',
+                color: isDark ? '#f5f5f7' : '#1d1d1f',
+                minWidth: '60px',
+                textAlign: 'center'
+              }}>
+                {readingGoal}
+              </div>
+              <button 
+                onClick={() => setReadingGoal(prev => prev + 50)}
+                style={{
+                  ...styles.iconButton,
+                  fontSize: '16px'
+                }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* 当前会话阅读进度 */}
+          <div style={styles.goalProgressContainer}>
+            <div style={styles.goalProgressTitle}>
+              当前阅读进度
+            </div>
+            <div style={styles.goalProgressBar}>
+              <div 
+                style={{
+                  ...styles.goalProgressBarFill,
+                  width: goalProgressWidth
+                }}
+              />
+            </div>
+            <div style={{
+              ...styles.goalProgressText,
+              ...(isGoalReached() ? styles.goalProgressCompleted : {})
+            }}>
+              {calculateSessionProgress()} / {readingGoal} 句
+              {isGoalReached() ? ' · 目标达成！' : ''}
+            </div>
+            
+            {isGoalReached() && (
+              <button
+                onClick={startNewSession}
+                style={{
+                  ...styles.modeButton,
+                  marginTop: '12px',
+                  backgroundColor: isDark ? '#2c2c2e' : '#e5e5ea'
+                }}
+              >
+                开始新会话
+              </button>
+            )}
+          </div>
+          
+          {/* 整体内容阅读进度 */}
+          <div style={styles.goalProgressContainer}>
+            <div style={styles.goalProgressTitle}>
+              整体阅读进度
+            </div>
+            <div style={styles.goalProgressBar}>
+              <div 
+                style={{
+                  ...styles.goalProgressBarFill,
+                  backgroundColor: isDark ? '#ff9f0a' : '#ff9500', // 使用橙色区分
+                  width: progressWidth
+                }}
+              />
+            </div>
+            <div style={styles.goalProgressText}>
+              {currentIndex + 1} / {formattedText.length} 句
+              <span style={{marginLeft: '8px'}}>
+                · {Math.round(((currentIndex + 1) / formattedText.length) * 100)}%
+              </span>
+            </div>
+            
+            <div style={{
+              fontSize: '12px',
+              color: isDark ? '#86868b' : '#98989d',
+              marginTop: '4px',
+              textAlign: 'center'
+            }}>
+              {formattedText.length > 0 && `总计${formattedText.length}句，剩余${formattedText.length - (currentIndex + 1)}句`}
+            </div>
+          </div>
+          
+          {/* 背景颜色选择器 */}
+          <div style={{marginBottom: '24px'}}>
+            <div style={styles.colorPickerLabel}>背景颜色</div>
+            <div style={styles.colorPickerContainer}>
+              {(isDark ? backgroundColors.dark : backgroundColors.light).map((color, index) => (
+                <div
+                  key={index}
+                  title={color.name}
+                  onClick={() => selectBackgroundColor(color.value)}
+                  style={{
+                    ...styles.colorOption,
+                    backgroundColor: color.value,
+                    ...(getCurrentBackgroundColor() === color.value ? styles.colorOptionActive : {})
+                  }}
+                />
+              ))}
+            </div>
           </div>
           
           <div style={{
@@ -579,6 +848,47 @@ export default function Home() {
 
         {/* 主内容区 */}
         <div style={styles.contentArea}>
+          {/* 顶部永久显示的页面进度指示器 */}
+          <div style={{
+            position: 'absolute',
+            top: '10px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: '200px',
+            backgroundColor: isDark ? 'rgba(30, 30, 30, 0.7)' : 'rgba(240, 240, 240, 0.7)',
+            borderRadius: '16px',
+            padding: '4px 12px',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            zIndex: 3
+          }}>
+            <div style={{
+              fontSize: '12px',
+              fontWeight: '500',
+              color: isDark ? '#f5f5f7' : '#1d1d1f',
+              marginBottom: '4px'
+            }}>
+              {currentIndex + 1} / {formattedText.length}
+            </div>
+            <div style={{
+              width: '100%',
+              height: '4px',
+              backgroundColor: isDark ? '#38383a' : '#e5e5ea',
+              borderRadius: '2px',
+              overflow: 'hidden'
+            }}>
+              <div style={{
+                height: '100%',
+                width: progressWidth,
+                backgroundColor: isDark ? '#ff9f0a' : '#ff9500',
+                borderRadius: '2px'
+              }} />
+            </div>
+          </div>
+          
           <div style={styles.textContent}>
             {formattedText[currentIndex]}
           </div>
@@ -627,12 +937,33 @@ export default function Home() {
             marginBottom: '20px'
           }}>
             <div style={styles.cardTitle}>文库</div>
-            <button 
-              onClick={toggleDarkMode}
-              style={styles.modeButton}
-            >
-              {isDark ? '浅色' : '深色'}
-            </button>
+            <div style={{display: 'flex', gap: '8px'}}>
+              <button 
+                onClick={toggleDarkMode}
+                style={styles.modeButton}
+              >
+                {isDark ? '浅色' : '深色'}
+              </button>
+            </div>
+          </div>
+
+          {/* 库页面背景颜色选择器 */}
+          <div style={{marginBottom: '24px'}}>
+            <div style={styles.colorPickerLabel}>背景颜色</div>
+            <div style={styles.colorPickerContainer}>
+              {(isDark ? backgroundColors.dark : backgroundColors.light).map((color, index) => (
+                <div
+                  key={index}
+                  title={color.name}
+                  onClick={() => selectBackgroundColor(color.value)}
+                  style={{
+                    ...styles.colorOption,
+                    backgroundColor: color.value,
+                    ...(getCurrentBackgroundColor() === color.value ? styles.colorOptionActive : {})
+                  }}
+                />
+              ))}
+            </div>
           </div>
           
           <div style={styles.dropZone}>
@@ -685,7 +1016,7 @@ export default function Home() {
                         </div>
                         <div style={styles.listItemSubtitle}>
                           {formattedDate}
-                          {hasPosition && (
+                          {hasPosition && formattedText.length > 0 && (
                             <span style={{marginLeft: '8px'}}>
                               · 已读{Math.round(((position + 1) / formattedText.length) * 100)}%
                             </span>
