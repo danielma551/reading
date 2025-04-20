@@ -1,10 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function Home() {
   const [text, setText] = useState('');
-  const [formattedText, setFormattedText] = useState('');
+  const [formattedText, setFormattedText] = useState([]);
   const [isReading, setIsReading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isDark, setIsDark] = useState(false);
+  const [fontSize, setFontSize] = useState(60);
+
+  useEffect(() => {
+    // 检测深色模式
+    const darkModeMedia = window.matchMedia('(prefers-color-scheme: dark)');
+    if (darkModeMedia.matches) {
+      setIsDark(true);
+    }
+
+    // 设置字体大小
+    function updateFontSize() {
+      const width = window.innerWidth;
+      if (width < 768) {
+        setFontSize(36);
+      } else if (width < 1024) {
+        setFontSize(48);
+      } else {
+        setFontSize(60);
+      }
+    }
+    
+    updateFontSize();
+    window.addEventListener('resize', updateFontSize);
+    
+    return () => {
+      window.removeEventListener('resize', updateFontSize);
+    };
+  }, []);
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -29,6 +58,7 @@ export default function Home() {
         return acc;
       }, [])
       .filter(s => s.trim());
+    
     setFormattedText(sentences);
   };
 
@@ -45,96 +75,212 @@ export default function Home() {
     setCurrentIndex(prev => Math.min(formattedText.length - 1, prev + 1));
   };
 
-  const handleKeyDown = (event) => {
-    if (event.key === 'ArrowLeft') {
-      handlePrevious();
-    } else if (event.key === 'ArrowRight') {
-      handleNext();
-    }
+  const toggleDarkMode = () => {
+    setIsDark(!isDark);
   };
 
   if (isReading && formattedText.length > 0) {
+    // 阅读模式
     return (
       <div 
-        className="min-h-screen bg-gray-50 flex flex-col items-center justify-center"
+        style={{
+          height: '100vh',
+          width: '100vw',
+          backgroundColor: isDark ? '#000' : '#fff',
+          color: isDark ? '#fff' : '#000',
+          overflow: 'hidden',
+          position: 'relative'
+        }}
         tabIndex={0}
-        onKeyDown={handleKeyDown}
+        onKeyDown={(e) => {
+          if (e.key === 'ArrowLeft') handlePrevious();
+          if (e.key === 'ArrowRight') handleNext();
+        }}
       >
-        <div className="fixed top-4 left-4">
-          <button
+        {/* 顶部控制栏 */}
+        <div style={{
+          height: '30px',
+          backgroundColor: isDark ? '#222' : '#f0f0f0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '0 10px',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 10,
+          color: isDark ? '#ccc' : '#333',
+          fontSize: '12px'
+        }}>
+          <button 
             onClick={toggleReadingMode}
-            className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              color: isDark ? '#ccc' : '#333',
+              padding: '3px 8px',
+              fontSize: '12px'
+            }}
           >
-            返回上传
+            返回
+          </button>
+          
+          <div>
+            {currentIndex + 1} / {formattedText.length}
+          </div>
+          
+          <button 
+            onClick={toggleDarkMode}
+            style={{
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+              color: isDark ? '#ccc' : '#333',
+              padding: '3px 8px',
+              fontSize: '12px'
+            }}
+          >
+            {isDark ? '浅色' : '深色'}
           </button>
         </div>
-        <div className="fixed top-4 right-4 text-gray-500">
-          {currentIndex + 1} / {formattedText.length}
-        </div>
-        <div className="max-w-3xl mx-auto px-4 flex flex-col items-center">
-          <div className="text-2xl md:text-3xl leading-relaxed text-gray-800 text-center font-serif mb-12">
+
+        {/* 主要内容区 */}
+        <div style={{
+          position: 'absolute',
+          top: '30px',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            fontSize: `${fontSize}px`,
+            textAlign: 'center',
+            maxWidth: '90%'
+          }}>
             {formattedText[currentIndex]}
           </div>
-          <div className="flex gap-4">
-            <button
-              onClick={handlePrevious}
-              disabled={currentIndex === 0}
-              className={`px-6 py-2 rounded-lg transition-colors ${
-                currentIndex === 0
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-500 text-white hover:bg-blue-600'
-              }`}
-            >
-              上一句
-            </button>
-            <button
-              onClick={handleNext}
-              disabled={currentIndex === formattedText.length - 1}
-              className={`px-6 py-2 rounded-lg transition-colors ${
-                currentIndex === formattedText.length - 1
-                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-500 text-white hover:bg-blue-600'
-              }`}
-            >
-              下一句
-            </button>
-          </div>
         </div>
+
+        {/* 左右点击区域 */}
+        <div
+          onClick={handlePrevious}
+          style={{
+            position: 'absolute',
+            top: '30px',
+            left: 0,
+            bottom: 0,
+            width: '50%',
+            cursor: 'pointer'
+          }}
+        />
+        <div
+          onClick={handleNext}
+          style={{
+            position: 'absolute',
+            top: '30px',
+            right: 0,
+            bottom: 0,
+            width: '50%',
+            cursor: 'pointer'
+          }}
+        />
       </div>
     );
   }
 
+  // 上传模式
   return (
-    <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center sm:py-12">
-      <div className="relative py-3 sm:max-w-xl sm:mx-auto">
-        <div className="relative px-4 py-10 bg-white shadow-lg sm:rounded-3xl sm:p-20">
-          <div className="max-w-md mx-auto">
-            <div className="divide-y divide-gray-200">
-              <div className="py-8 text-base leading-6 space-y-4 text-gray-700 sm:text-lg sm:leading-7">
-                <h1 className="text-3xl font-bold mb-8 text-center">文本阅读器</h1>
-                <div className="mb-8">
-                  <label className="block text-gray-700 text-sm font-bold mb-2">
-                    上传TXT文件
-                  </label>
-                  <input
-                    type="file"
-                    accept=".txt"
-                    onChange={handleFileUpload}
-                    className="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:shadow-outline"
-                  />
-                </div>
-                {formattedText.length > 0 && (
-                  <div className="text-center">
-                    <button
-                      onClick={toggleReadingMode}
-                      className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors"
-                    >
-                      开始阅读
-                    </button>
-                  </div>
-                )}
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? '#000' : '#fff',
+      color: isDark ? '#fff' : '#000'
+    }}>
+      <div style={{
+        width: '100%',
+        maxWidth: '400px',
+        padding: '0 20px'
+      }}>
+        <div style={{
+          backgroundColor: isDark ? '#222' : '#f0f0f0',
+          borderRadius: '16px',
+          padding: '32px',
+          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+        }}>
+          <h1 style={{
+            fontSize: '32px',
+            fontWeight: '500',
+            marginBottom: '40px',
+            textAlign: 'center'
+          }}>阅读器</h1>
+          
+          <div>
+            <label style={{
+              display: 'block',
+              fontSize: '14px',
+              fontWeight: '500',
+              marginBottom: '10px',
+              color: isDark ? '#ccc' : '#555'
+            }}>
+              选择文件
+            </label>
+            
+            <div style={{
+              position: 'relative',
+              border: `2px dashed ${isDark ? '#555' : '#ddd'}`,
+              backgroundColor: isDark ? '#333' : '#fff',
+              borderRadius: '8px',
+              padding: '24px',
+              textAlign: 'center'
+            }}>
+              <input
+                type="file"
+                accept=".txt"
+                onChange={handleFileUpload}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  opacity: 0,
+                  cursor: 'pointer'
+                }}
+              />
+              <div style={{
+                fontSize: '14px',
+                color: isDark ? '#999' : '#777'
+              }}>
+                拖放文件到此处，或点击选择
               </div>
             </div>
+            
+            {formattedText.length > 0 && (
+              <button
+                onClick={toggleReadingMode}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  marginTop: '32px',
+                  backgroundColor: isDark ? '#3b82f6' : '#2563eb',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                开始阅读
+              </button>
+            )}
           </div>
         </div>
       </div>
