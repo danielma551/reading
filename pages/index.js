@@ -9,6 +9,8 @@ export default function Home() {
   const [fontSize, setFontSize] = useState(60);
   const [savedTexts, setSavedTexts] = useState([]);
   const [selectedSavedText, setSelectedSavedText] = useState(null);
+  const [lastPositions, setLastPositions] = useState({});
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     // 检测深色模式
@@ -32,21 +34,39 @@ export default function Home() {
     updateFontSize();
     window.addEventListener('resize', updateFontSize);
     
-    // 从本地存储加载保存的文本
+    // 从本地存储加载保存的文本和位置信息
     try {
       const savedData = localStorage.getItem('savedTexts');
+      const positionsData = localStorage.getItem('lastPositions');
+      
       if (savedData) {
         const parsedData = JSON.parse(savedData);
         setSavedTexts(parsedData);
       }
       
-      // 尝试加载上次阅读位置
-      const lastReadingState = localStorage.getItem('lastReadingState');
-      if (lastReadingState) {
-        const { textIndex, position } = JSON.parse(lastReadingState);
-        if (textIndex !== undefined && position !== undefined) {
+      if (positionsData) {
+        const positions = JSON.parse(positionsData);
+        setLastPositions(positions);
+      }
+      
+      // 尝试加载上次阅读的文本
+      const lastReadTextIndex = localStorage.getItem('lastReadTextIndex');
+      if (lastReadTextIndex !== null && savedData) {
+        const textIndex = parseInt(lastReadTextIndex);
+        const parsedData = JSON.parse(savedData);
+        
+        if (parsedData[textIndex]) {
           setSelectedSavedText(textIndex);
-          setCurrentIndex(position);
+          setText(parsedData[textIndex].content);
+          formatText(parsedData[textIndex].content);
+          
+          // 设置阅读位置
+          if (positionsData) {
+            const positions = JSON.parse(positionsData);
+            if (positions[textIndex] !== undefined) {
+              setCurrentIndex(positions[textIndex]);
+            }
+          }
         }
       }
     } catch (error) {
@@ -61,12 +81,15 @@ export default function Home() {
   // 保存当前阅读位置
   useEffect(() => {
     if (isReading && selectedSavedText !== null) {
-      localStorage.setItem('lastReadingState', JSON.stringify({
-        textIndex: selectedSavedText,
-        position: currentIndex
-      }));
+      const newPositions = { ...lastPositions };
+      newPositions[selectedSavedText] = currentIndex;
+      
+      localStorage.setItem('lastPositions', JSON.stringify(newPositions));
+      localStorage.setItem('lastReadTextIndex', selectedSavedText.toString());
+      
+      setLastPositions(newPositions);
     }
-  }, [isReading, selectedSavedText, currentIndex]);
+  }, [isReading, selectedSavedText, currentIndex, lastPositions]);
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -120,6 +143,7 @@ export default function Home() {
     // 保存到本地存储
     try {
       localStorage.setItem('savedTexts', JSON.stringify(newSavedTexts));
+      localStorage.setItem('lastReadTextIndex', selectedSavedText !== null ? selectedSavedText.toString() : '0');
     } catch (error) {
       console.error('保存文本失败:', error);
     }
@@ -130,6 +154,16 @@ export default function Home() {
       setSelectedSavedText(index);
       setText(savedTexts[index].content);
       formatText(savedTexts[index].content);
+      
+      // 恢复上次阅读位置
+      if (lastPositions[index] !== undefined) {
+        setCurrentIndex(lastPositions[index]);
+      } else {
+        setCurrentIndex(0);
+      }
+      
+      // 记录当前选择的文本
+      localStorage.setItem('lastReadTextIndex', index.toString());
     }
   };
 
@@ -140,14 +174,34 @@ export default function Home() {
     newSavedTexts.splice(index, 1);
     setSavedTexts(newSavedTexts);
     
+    // 删除该文本的位置记录
+    const newPositions = { ...lastPositions };
+    delete newPositions[index];
+    
+    // 调整其他文本的位置索引
+    const adjustedPositions = {};
+    Object.keys(newPositions).forEach(key => {
+      const keyNum = parseInt(key);
+      if (keyNum > index) {
+        adjustedPositions[keyNum - 1] = newPositions[keyNum];
+      } else {
+        adjustedPositions[keyNum] = newPositions[keyNum];
+      }
+    });
+    
+    setLastPositions(adjustedPositions);
+    localStorage.setItem('lastPositions', JSON.stringify(adjustedPositions));
+    
     // 如果删除的是当前选中的文本，清空选择
     if (selectedSavedText === index) {
       setSelectedSavedText(null);
       setText('');
       setFormattedText([]);
+      localStorage.removeItem('lastReadTextIndex');
     } else if (selectedSavedText > index) {
       // 如果删除的是当前选中文本之前的文本，调整选中索引
       setSelectedSavedText(selectedSavedText - 1);
+      localStorage.setItem('lastReadTextIndex', (selectedSavedText - 1).toString());
     }
     
     // 更新本地存储
@@ -156,9 +210,7 @@ export default function Home() {
 
   const toggleReadingMode = () => {
     setIsReading(!isReading);
-    if (!isReading) {
-      setCurrentIndex(0);
-    }
+    // 不再在此处重置currentIndex，保留当前位置
   };
 
   const handlePrevious = () => {
@@ -173,269 +225,496 @@ export default function Home() {
     setIsDark(!isDark);
   };
 
+  const toggleMenu = () => {
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  // 苹果风格样式
+  const styles = {
+    container: {
+      height: '100vh',
+      width: '100vw',
+      backgroundColor: isDark ? '#000' : '#f5f5f7',
+      color: isDark ? '#f5f5f7' : '#1d1d1f',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      overflow: 'hidden',
+      position: 'relative',
+      transition: 'background-color 0.3s ease, color 0.3s ease'
+    },
+    header: {
+      height: '44px',
+      backgroundColor: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(245, 245, 247, 0.8)',
+      backdropFilter: 'blur(10px)',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '0 16px',
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+      boxShadow: isDark ? '0 1px 0 rgba(255, 255, 255, 0.05)' : '0 1px 0 rgba(0, 0, 0, 0.05)',
+      transition: 'background-color 0.3s ease'
+    },
+    headerButton: {
+      border: 'none',
+      background: 'transparent',
+      cursor: 'pointer',
+      color: isDark ? '#0a84ff' : '#06c',
+      padding: '8px',
+      fontSize: '15px',
+      fontWeight: '500',
+      transition: 'opacity 0.2s ease',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    headerTitle: {
+      fontSize: '17px',
+      fontWeight: '600',
+      color: isDark ? '#f5f5f7' : '#1d1d1f'
+    },
+    contentArea: {
+      position: 'absolute',
+      top: '44px',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: '20px',
+      transition: 'opacity 0.3s ease'
+    },
+    textContent: {
+      fontSize: `${fontSize}px`,
+      textAlign: 'center',
+      maxWidth: '90%',
+      fontWeight: '300',
+      lineHeight: '1.4',
+      letterSpacing: '0.01em',
+      transition: 'all 0.3s ease'
+    },
+    clickArea: {
+      position: 'absolute',
+      top: '44px',
+      bottom: 0,
+      width: '50%',
+      cursor: 'pointer',
+      userSelect: 'none',
+      WebkitTapHighlightColor: 'transparent'
+    },
+    progressBar: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      height: '4px',
+      backgroundColor: isDark ? '#0a84ff' : '#06c',
+      transition: 'width 0.3s ease',
+      borderRadius: '2px',
+      opacity: '0.9'
+    },
+    menu: {
+      position: 'absolute',
+      top: '44px',
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+      backdropFilter: 'blur(20px)',
+      zIndex: 9,
+      display: isMenuOpen ? 'flex' : 'none',
+      flexDirection: 'column',
+      padding: '20px',
+      transition: 'all 0.3s ease',
+      overflowY: 'auto'
+    },
+    menuTitle: {
+      fontSize: '22px',
+      fontWeight: '600',
+      marginBottom: '20px',
+      color: isDark ? '#f5f5f7' : '#1d1d1f',
+      textAlign: 'center'
+    },
+    // 苹果风格的库页面样式
+    libraryContainer: {
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
+      backgroundColor: isDark ? '#000' : '#f5f5f7',
+      color: isDark ? '#f5f5f7' : '#1d1d1f',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      transition: 'background-color 0.3s ease, color 0.3s ease'
+    },
+    libraryHeader: {
+      height: '44px',
+      backgroundColor: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(245, 245, 247, 0.8)',
+      backdropFilter: 'blur(10px)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      boxShadow: isDark ? '0 1px 0 rgba(255, 255, 255, 0.05)' : '0 1px 0 rgba(0, 0, 0, 0.05)',
+      position: 'sticky',
+      top: 0,
+      zIndex: 10
+    },
+    libraryTitle: {
+      fontSize: '17px',
+      fontWeight: '600',
+      color: isDark ? '#f5f5f7' : '#1d1d1f'
+    },
+    libraryContent: {
+      flex: 1,
+      padding: '20px',
+      maxWidth: '700px',
+      margin: '0 auto',
+      width: '100%'
+    },
+    card: {
+      backgroundColor: isDark ? '#1c1c1e' : '#fff',
+      borderRadius: '12px',
+      padding: '24px',
+      boxShadow: isDark 
+        ? '0 4px 16px rgba(0, 0, 0, 0.3)' 
+        : '0 4px 16px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.05)',
+      marginBottom: '24px',
+      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+      maxWidth: '100%'
+    },
+    cardTitle: {
+      fontSize: '22px',
+      fontWeight: '600',
+      marginBottom: '16px',
+      color: isDark ? '#f5f5f7' : '#1d1d1f'
+    },
+    dropZone: {
+      position: 'relative',
+      border: `2px dashed ${isDark ? '#424245' : '#d2d2d7'}`,
+      backgroundColor: isDark ? '#2c2c2e' : '#f5f5f7',
+      borderRadius: '12px',
+      padding: '32px 24px',
+      textAlign: 'center',
+      transition: 'all 0.2s ease',
+      marginBottom: '24px'
+    },
+    dropZoneText: {
+      fontSize: '15px',
+      color: isDark ? '#86868b' : '#86868b',
+      marginBottom: '8px'
+    },
+    dropZoneSubtext: {
+      fontSize: '13px',
+      color: isDark ? '#636366' : '#a1a1a6'
+    },
+    listSection: {
+      marginTop: '32px'
+    },
+    listTitle: {
+      fontSize: '17px',
+      fontWeight: '600',
+      marginBottom: '12px',
+      color: isDark ? '#f5f5f7' : '#1d1d1f',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between'
+    },
+    listContainer: {
+      backgroundColor: isDark ? '#2c2c2e' : '#fff',
+      borderRadius: '12px',
+      overflow: 'hidden',
+      boxShadow: isDark 
+        ? '0 2px 8px rgba(0, 0, 0, 0.2)' 
+        : '0 2px 8px rgba(0, 0, 0, 0.05)'
+    },
+    listItem: {
+      padding: '13px 16px',
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      borderBottom: `1px solid ${isDark ? '#38383a' : '#e5e5ea'}`,
+      backgroundColor: 'transparent',
+      transition: 'background-color 0.2s ease',
+      cursor: 'pointer'
+    },
+    listItemActive: {
+      backgroundColor: isDark ? '#38383a' : '#f2f2f7'
+    },
+    listItemTitle: {
+      fontSize: '16px',
+      color: isDark ? '#f5f5f7' : '#1d1d1f',
+      flex: 1,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap'
+    },
+    listItemSubtitle: {
+      fontSize: '13px',
+      color: isDark ? '#98989d' : '#8e8e93',
+      marginTop: '4px'
+    },
+    button: {
+      backgroundColor: isDark ? '#0a84ff' : '#06c',
+      color: 'white',
+      fontWeight: '600',
+      fontSize: '16px',
+      border: 'none',
+      borderRadius: '12px',
+      padding: '12px 24px',
+      width: '100%',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s ease',
+      marginTop: '16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    buttonHover: {
+      backgroundColor: isDark ? '#0071e3' : '#0051a8'
+    },
+    iconButton: {
+      border: 'none',
+      background: 'transparent',
+      cursor: 'pointer',
+      color: isDark ? '#0a84ff' : '#06c',
+      padding: '8px',
+      fontSize: '14px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      transition: 'opacity 0.2s ease'
+    },
+    modeButton: {
+      border: 'none',
+      background: isDark ? '#2c2c2e' : '#f2f2f7',
+      padding: '4px 12px',
+      borderRadius: '16px',
+      fontSize: '12px',
+      color: isDark ? '#f5f5f7' : '#1d1d1f',
+      fontWeight: '500',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s ease'
+    }
+  };
+
+  // 阅读时的进度条宽度
+  const progressWidth = formattedText.length > 0 
+    ? `${((currentIndex + 1) / formattedText.length) * 100}%` 
+    : '0%';
+
   if (isReading && formattedText.length > 0) {
-    // 阅读模式
+    // 苹果风格的阅读模式
     return (
-      <div 
-        style={{
-          height: '100vh',
-          width: '100vw',
-          backgroundColor: isDark ? '#000' : '#fff',
-          color: isDark ? '#fff' : '#000',
-          overflow: 'hidden',
-          position: 'relative'
-        }}
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'ArrowLeft') handlePrevious();
-          if (e.key === 'ArrowRight') handleNext();
-        }}
-      >
-        {/* 顶部控制栏 */}
-        <div style={{
-          height: '30px',
-          backgroundColor: isDark ? '#222' : '#f0f0f0',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0 10px',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 10,
-          color: isDark ? '#ccc' : '#333',
-          fontSize: '12px'
-        }}>
+      <div style={styles.container}>
+        {/* 顶部导航栏 */}
+        <div style={styles.header}>
           <button 
             onClick={toggleReadingMode}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: isDark ? '#ccc' : '#333',
-              padding: '3px 8px',
-              fontSize: '12px'
-            }}
+            style={styles.headerButton}
           >
-            返回
+            完成
           </button>
-          
-          <div>
-            {currentIndex + 1} / {formattedText.length}
+          <div style={styles.headerTitle}>
+            {selectedSavedText !== null && savedTexts[selectedSavedText]
+              ? savedTexts[selectedSavedText].name 
+              : '阅读中'}
           </div>
-          
           <button 
-            onClick={toggleDarkMode}
-            style={{
-              border: 'none',
-              background: 'transparent',
-              cursor: 'pointer',
-              color: isDark ? '#ccc' : '#333',
-              padding: '3px 8px',
-              fontSize: '12px'
-            }}
+            onClick={toggleMenu}
+            style={styles.headerButton}
           >
-            {isDark ? '浅色' : '深色'}
+            {isMenuOpen ? '关闭' : '设置'}
           </button>
         </div>
 
-        {/* 主要内容区 */}
-        <div style={{
-          position: 'absolute',
-          top: '30px',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          padding: '20px'
-        }}>
+        {/* 阅读设置菜单 */}
+        <div style={styles.menu}>
+          <div style={styles.menuTitle}>阅读设置</div>
+          
+          <div style={{marginBottom: '20px', textAlign: 'center'}}>
+            <button 
+              onClick={toggleDarkMode} 
+              style={styles.modeButton}
+            >
+              切换到{isDark ? '浅色' : '深色'}模式
+            </button>
+          </div>
+          
           <div style={{
-            fontSize: `${fontSize}px`,
-            textAlign: 'center',
-            maxWidth: '90%'
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            marginBottom: '20px'
           }}>
+            <div style={{
+              fontSize: '15px',
+              marginBottom: '12px',
+              color: isDark ? '#98989d' : '#8e8e93'
+            }}>字体大小</div>
+            
+            <div style={{display: 'flex', gap: '16px', alignItems: 'center'}}>
+              <button 
+                onClick={() => setFontSize(prev => Math.max(16, prev - 4))}
+                style={styles.iconButton}
+              >
+                A-
+              </button>
+              
+              <div style={{
+                fontSize: '17px',
+                color: isDark ? '#f5f5f7' : '#1d1d1f'
+              }}>
+                {fontSize}px
+              </div>
+              
+              <button 
+                onClick={() => setFontSize(prev => Math.min(80, prev + 4))}
+                style={styles.iconButton}
+              >
+                A+
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 主内容区 */}
+        <div style={styles.contentArea}>
+          <div style={styles.textContent}>
             {formattedText[currentIndex]}
           </div>
         </div>
+
+        {/* 进度条 */}
+        <div 
+          style={{
+            ...styles.progressBar,
+            width: progressWidth
+          }}
+        />
 
         {/* 左右点击区域 */}
         <div
           onClick={handlePrevious}
           style={{
-            position: 'absolute',
-            top: '30px',
-            left: 0,
-            bottom: 0,
-            width: '50%',
-            cursor: 'pointer'
+            ...styles.clickArea,
+            left: 0
           }}
         />
         <div
           onClick={handleNext}
           style={{
-            position: 'absolute',
-            top: '30px',
-            right: 0,
-            bottom: 0,
-            width: '50%',
-            cursor: 'pointer'
+            ...styles.clickArea,
+            right: 0
           }}
         />
       </div>
     );
   }
 
-  // 上传模式
+  // 苹果风格的库页面
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: isDark ? '#000' : '#fff',
-      color: isDark ? '#fff' : '#000'
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '400px',
-        padding: '0 20px'
-      }}>
-        <div style={{
-          backgroundColor: isDark ? '#222' : '#f0f0f0',
-          borderRadius: '16px',
-          padding: '32px',
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-        }}>
-          <h1 style={{
-            fontSize: '32px',
-            fontWeight: '500',
-            marginBottom: '40px',
-            textAlign: 'center'
-          }}>阅读器</h1>
+    <div style={styles.libraryContainer}>
+      <div style={styles.libraryHeader}>
+        <div style={styles.libraryTitle}>阅读器</div>
+      </div>
+      
+      <div style={styles.libraryContent}>
+        <div style={styles.card}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px'
+          }}>
+            <div style={styles.cardTitle}>文库</div>
+            <button 
+              onClick={toggleDarkMode}
+              style={styles.modeButton}
+            >
+              {isDark ? '浅色' : '深色'}
+            </button>
+          </div>
           
-          <div>
-            <label style={{
-              display: 'block',
-              fontSize: '14px',
-              fontWeight: '500',
-              marginBottom: '10px',
-              color: isDark ? '#ccc' : '#555'
-            }}>
-              选择文件
-            </label>
-            
-            <div style={{
-              position: 'relative',
-              border: `2px dashed ${isDark ? '#555' : '#ddd'}`,
-              backgroundColor: isDark ? '#333' : '#fff',
-              borderRadius: '8px',
-              padding: '24px',
-              textAlign: 'center'
-            }}>
-              <input
-                type="file"
-                accept=".txt"
-                onChange={handleFileUpload}
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  width: '100%',
-                  height: '100%',
-                  opacity: 0,
-                  cursor: 'pointer'
-                }}
-              />
-              <div style={{
-                fontSize: '14px',
-                color: isDark ? '#999' : '#777'
-              }}>
-                拖放文件到此处，或点击选择
+          <div style={styles.dropZone}>
+            <div style={styles.dropZoneText}>添加新文件</div>
+            <div style={styles.dropZoneSubtext}>拖放文件到此处，或点击选择</div>
+            <input
+              type="file"
+              accept=".txt"
+              onChange={handleFileUpload}
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                opacity: 0,
+                cursor: 'pointer'
+              }}
+            />
+          </div>
+          
+          {savedTexts.length > 0 && (
+            <div style={styles.listSection}>
+              <div style={styles.listTitle}>
+                <span>我的文档</span>
+                <span style={{fontSize: '13px', color: isDark ? '#8e8e93' : '#8e8e93'}}>
+                  {savedTexts.length}个文件
+                </span>
               </div>
-            </div>
-            
-            {/* 已保存的文本列表 */}
-            {savedTexts.length > 0 && (
-              <div style={{
-                marginTop: '32px'
-              }}>
-                <h2 style={{
-                  fontSize: '16px',
-                  fontWeight: '500',
-                  marginBottom: '12px',
-                  color: isDark ? '#ccc' : '#555'
-                }}>
-                  已保存的文本
-                </h2>
-                <div style={{
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  border: `1px solid ${isDark ? '#444' : '#eee'}`,
-                  borderRadius: '8px'
-                }}>
-                  {savedTexts.map((item, index) => (
+              
+              <div style={styles.listContainer}>
+                {savedTexts.map((item, index) => {
+                  const position = lastPositions[index];
+                  const hasPosition = position !== undefined;
+                  const isSelected = selectedSavedText === index;
+                  const date = new Date(item.date);
+                  const formattedDate = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+                  
+                  return (
                     <div 
                       key={index}
                       onClick={() => loadSavedText(index)}
                       style={{
-                        padding: '10px 12px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        borderBottom: index < savedTexts.length - 1 ? `1px solid ${isDark ? '#333' : '#eee'}` : 'none',
-                        backgroundColor: selectedSavedText === index ? (isDark ? '#333' : '#f5f5f5') : 'transparent',
-                        cursor: 'pointer'
+                        ...styles.listItem,
+                        ...(isSelected ? styles.listItemActive : {})
                       }}
                     >
-                      <div style={{
-                        flex: 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        {item.name}
+                      <div style={{flex: 1}}>
+                        <div style={styles.listItemTitle}>
+                          {item.name}
+                        </div>
+                        <div style={styles.listItemSubtitle}>
+                          {formattedDate}
+                          {hasPosition && (
+                            <span style={{marginLeft: '8px'}}>
+                              · 已读{Math.round(((position + 1) / formattedText.length) * 100)}%
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <button
                         onClick={(e) => deleteSavedText(e, index)}
-                        style={{
-                          border: 'none',
-                          background: 'transparent',
-                          color: isDark ? '#999' : '#999',
-                          cursor: 'pointer',
-                          marginLeft: '8px',
-                          fontSize: '14px'
-                        }}
+                        style={styles.iconButton}
                       >
                         删除
                       </button>
                     </div>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            )}
-            
-            {formattedText.length > 0 && (
-              <button
-                onClick={toggleReadingMode}
-                style={{
-                  width: '100%',
-                  padding: '12px',
-                  marginTop: '32px',
-                  backgroundColor: isDark ? '#3b82f6' : '#2563eb',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
-              >
-                开始阅读
-              </button>
-            )}
-          </div>
+            </div>
+          )}
+          
+          {formattedText.length > 0 && (
+            <button
+              onClick={toggleReadingMode}
+              style={styles.button}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = styles.buttonHover.backgroundColor}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = styles.button.backgroundColor}
+            >
+              开始阅读
+            </button>
+          )}
         </div>
       </div>
     </div>
