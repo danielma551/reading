@@ -920,20 +920,31 @@ export default function Home() {
     }
   };
 
-  // 计算整体进度分段
+  // 计算三个进度条段的进度 (按照总目标的三等分)
   const calculateProgressSegments = () => {
+    // 计算当前已读句子数
     const totalSentencesRead = currentIndex - sessionStartIndex + 1;
-    const segmentSize = Math.ceil(readingGoal / 3); // 将总目标分为三等分
     
-    // 第一段进度 (0-33.33%)
+    // 将总目标分为三等分
+    const segmentSize = Math.ceil(readingGoal / 3);
+    
+    // 第一部分进度 (总目标的前33.33%)
     const firstSegmentProgress = Math.min(totalSentencesRead / segmentSize, 1) * 100;
     
-    // 第二段进度 (33.33%-66.66%)
-    const secondSegmentProgress = totalSentencesRead > segmentSize 
-      ? Math.min((totalSentencesRead - segmentSize) / segmentSize, 1) * 100 
-      : 0;
+    // 第二部分进度 (总目标的中间33.33%)，每25句重置一次
+    let secondSegmentProgress = 0;
+    if (totalSentencesRead > segmentSize) {
+      // 计算在第二部分中已经读了多少句
+      const sentencesInSecondPart = totalSentencesRead - segmentSize;
+      // 每25句为一周期，计算当前周期内的进度
+      secondSegmentProgress = (sentencesInSecondPart % 25) / 25 * 100;
+      // 如果已读句子还没有到第二部分，则进度为0
+      if (sentencesInSecondPart <= 0) {
+        secondSegmentProgress = 0;
+      }
+    }
     
-    // 第三段进度 (66.66%-100%)
+    // 第三部分进度 (总目标的最后33.33%)
     const thirdSegmentProgress = totalSentencesRead > (segmentSize * 2) 
       ? Math.min((totalSentencesRead - (segmentSize * 2)) / segmentSize, 1) * 100 
       : 0;
@@ -1249,121 +1260,123 @@ export default function Home() {
               width: '100%',
               marginBottom: '4px',
             }}>
-              {/* 第一段进度条 (1-8句) */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: '4px'
-              }}>
-                <div style={{
-                  fontSize: '10px',
-                  color: isDark ? '#98989d' : '#8e8e93',
-                }}>
-                  第一部分 (1-{Math.floor(cardSize/3)}句)
-                </div>
-                <div style={{
-                  fontSize: '10px',
-                  color: isDark ? '#98989d' : '#8e8e93',
-                }}>
-                  {Math.min(100, Math.max(0, getSentencesInCurrentSegment() < Math.floor(cardSize/3) ? 
-                    getSentencesInCurrentSegment() / Math.floor(cardSize/3) * 100 : 100))}%
-                </div>
-              </div>
-              <div style={{
-                width: '100%',
-                height: '8px',
-                backgroundColor: isDark ? '#38383a' : '#e5e5ea',
-                borderRadius: '4px',
-                overflow: 'hidden',
-                border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
-                marginBottom: '10px',
-              }}>
-                <div style={{
-                  height: '100%',
-                  width: `${Math.min(100, Math.max(0, getSentencesInCurrentSegment() < Math.floor(cardSize/3) ? 
-                    getSentencesInCurrentSegment() / Math.floor(cardSize/3) * 100 : 100))}%`,
-                  backgroundColor: '#FF5252', // 红色
-                  borderRadius: '3px',
-                  transition: 'width 0.3s ease'
-                }} />
-              </div>
-              
-              {/* 第二段进度条 (9-16句) */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: '4px'
-              }}>
-                <div style={{
-                  fontSize: '10px',
-                  color: isDark ? '#98989d' : '#8e8e93',
-                }}>
-                  第二部分 ({Math.floor(cardSize/3)+1}-{Math.floor(cardSize*2/3)}句)
-                </div>
-                <div style={{
-                  fontSize: '10px',
-                  color: isDark ? '#98989d' : '#8e8e93',
-                }}>
-                  {Math.min(100, Math.max(0, getSentencesInCurrentSegment() < Math.floor(cardSize*2/3) ? 
-                    Math.max(0, getSentencesInCurrentSegment() - Math.floor(cardSize/3)) / (Math.floor(cardSize*2/3) - Math.floor(cardSize/3)) * 100 : 100))}%
-                </div>
-              </div>
-              <div style={{
-                width: '100%',
-                height: '8px',
-                backgroundColor: isDark ? '#38383a' : '#e5e5ea',
-                borderRadius: '4px',
-                overflow: 'hidden',
-                border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
-                marginBottom: '10px',
-              }}>
-                <div style={{
-                  height: '100%',
-                  width: `${Math.min(100, Math.max(0, getSentencesInCurrentSegment() < Math.floor(cardSize*2/3) ? 
-                    Math.max(0, getSentencesInCurrentSegment() - Math.floor(cardSize/3)) / (Math.floor(cardSize*2/3) - Math.floor(cardSize/3)) * 100 : 100))}%`,
-                  backgroundColor: '#FFD740', // 黄色
-                  borderRadius: '3px',
-                  transition: 'width 0.3s ease'
-                }} />
-              </div>
-              
-              {/* 第三段进度条 (17-25句) */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                marginBottom: '4px'
-              }}>
-                <div style={{
-                  fontSize: '10px',
-                  color: isDark ? '#98989d' : '#8e8e93',
-                }}>
-                  第三部分 ({Math.floor(cardSize*2/3)+1}-{cardSize}句)
-                </div>
-                <div style={{
-                  fontSize: '10px',
-                  color: isDark ? '#98989d' : '#8e8e93',
-                }}>
-                  {Math.min(100, Math.max(0, 
-                    Math.max(0, getSentencesInCurrentSegment() - Math.floor(cardSize*2/3)) / (cardSize - Math.floor(cardSize*2/3)) * 100))}%
-                </div>
-              </div>
-              <div style={{
-                width: '100%',
-                height: '8px',
-                backgroundColor: isDark ? '#38383a' : '#e5e5ea',
-                borderRadius: '4px',
-                overflow: 'hidden',
-                border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
-              }}>
-                <div style={{
-                  height: '100%',
-                  width: `${Math.min(100, Math.max(0, 
-                    Math.max(0, getSentencesInCurrentSegment() - Math.floor(cardSize*2/3)) / (cardSize - Math.floor(cardSize*2/3)) * 100))}%`,
-                  backgroundColor: '#00A7E1', // 瑞幻蓝
-                  borderRadius: '3px',
-                  transition: 'width 0.3s ease'
-                }} />
-              </div>
+              {/* 计算三个进度段 */}
+              {(() => {
+                const [firstProgress, secondProgress, thirdProgress] = calculateProgressSegments();
+                return (
+                  <>
+                    {/* 第一段进度条 (总目标的前33.33%) */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: '4px'
+                    }}>
+                      <div style={{
+                        fontSize: '10px',
+                        color: isDark ? '#98989d' : '#8e8e93',
+                      }}>
+                        第一部分 (1-{Math.ceil(readingGoal/3)}句)
+                      </div>
+                      <div style={{
+                        fontSize: '10px',
+                        color: isDark ? '#98989d' : '#8e8e93',
+                      }}>
+                        {Math.round(firstProgress)}%
+                      </div>
+                    </div>
+                    <div style={{
+                      width: '100%',
+                      height: '8px',
+                      backgroundColor: isDark ? '#38383a' : '#e5e5ea',
+                      borderRadius: '4px',
+                      overflow: 'hidden',
+                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
+                      marginBottom: '10px',
+                    }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${firstProgress}%`,
+                        backgroundColor: '#FF5252', // 红色
+                        borderRadius: '3px',
+                        transition: 'width 0.3s ease'
+                      }} />
+                    </div>
+                    
+                    {/* 第二段进度条 (25句周期，会重置) */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: '4px'
+                    }}>
+                      <div style={{
+                        fontSize: '10px',
+                        color: isDark ? '#98989d' : '#8e8e93',
+                      }}>
+                        第二部分 ({Math.ceil(readingGoal/3)+1}-{Math.ceil(readingGoal*2/3)}句，每25句重置)
+                      </div>
+                      <div style={{
+                        fontSize: '10px',
+                        color: isDark ? '#98989d' : '#8e8e93',
+                      }}>
+                        {Math.round(secondProgress)}%
+                      </div>
+                    </div>
+                    <div style={{
+                      width: '100%',
+                      height: '8px',
+                      backgroundColor: isDark ? '#38383a' : '#e5e5ea',
+                      borderRadius: '4px',
+                      overflow: 'hidden',
+                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
+                      marginBottom: '10px',
+                    }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${secondProgress}%`,
+                        backgroundColor: '#FFD740', // 黄色
+                        borderRadius: '3px',
+                        transition: 'width 0.3s ease'
+                      }} />
+                    </div>
+                    
+                    {/* 第三段进度条 (总目标的最后33.33%) */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      marginBottom: '4px'
+                    }}>
+                      <div style={{
+                        fontSize: '10px',
+                        color: isDark ? '#98989d' : '#8e8e93',
+                      }}>
+                        第三部分 ({Math.ceil(readingGoal*2/3)+1}-{readingGoal}句)
+                      </div>
+                      <div style={{
+                        fontSize: '10px',
+                        color: isDark ? '#98989d' : '#8e8e93',
+                      }}>
+                        {Math.round(thirdProgress)}%
+                      </div>
+                    </div>
+                    <div style={{
+                      width: '100%',
+                      height: '8px',
+                      backgroundColor: isDark ? '#38383a' : '#e5e5ea',
+                      borderRadius: '4px',
+                      overflow: 'hidden',
+                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
+                    }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${thirdProgress}%`,
+                        backgroundColor: '#00A7E1', // 瑞幻蓝
+                        borderRadius: '3px',
+                        transition: 'width 0.3s ease'
+                      }} />
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
           
