@@ -8,7 +8,7 @@ export default function Home() {
   const [isReading, setIsReading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isDark, setIsDark] = useState(false);
-  const [fontSize, setFontSize] = useState(60);
+  const [fontSize, setFontSize] = useState(20); // 默认字体大小
   const [savedTexts, setSavedTexts] = useState([]);
   const [selectedSavedText, setSelectedSavedText] = useState(null);
   const [lastPositions, setLastPositions] = useState({});
@@ -16,7 +16,7 @@ export default function Home() {
   const [backgroundColor, setBackgroundColor] = useState('');
   const [readingGoal, setReadingGoal] = useState(400);
   const [sessionStartIndex, setSessionStartIndex] = useState(0);
-  const [selectedFont, setSelectedFont] = useState('system');
+  const [selectedFont, setSelectedFont] = useState('cangerJinKai'); // 默认使用仓耳今楷字体
   // 新增：自定义字体状态
   const [customFonts, setCustomFonts] = useState([]);
   const cardSize = 25; // 每组卡片的数量
@@ -262,20 +262,23 @@ export default function Home() {
 
   // 删除自定义字体
   const deleteCustomFont = (fontId) => {
-    const updatedFonts = customFonts.filter(font => font.id !== fontId);
-    setCustomFonts(updatedFonts);
-    localStorage.setItem('customFonts', JSON.stringify(updatedFonts));
+    if (!isClient) return;
     
-    // 如果当前选择的是被删除的字体，则切换到系统字体
+    // 如果正在使用要删除的字体，则切换到系统默认字体
     if (selectedFont === fontId) {
-      setSelectedFont('system');
-      localStorage.setItem('selectedFont', 'system');
+      setSelectedFont('cangerJinKai');
+      localStorage.setItem('selectedFont', 'cangerJinKai');
     }
+    
+    // 从自定义字体列表中移除
+    const updatedCustomFonts = customFonts.filter(font => font.id !== fontId);
+    setCustomFonts(updatedCustomFonts);
+    localStorage.setItem('customFonts', JSON.stringify(updatedCustomFonts));
   };
 
   // 只有在客户端才加载字体和背景颜色选项
   const fontOptions = isClient ? [
-    { id: 'system', name: '系统字体', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' },
+    { id: 'cangerJinKai', name: '仓耳今楷', value: 'CangErJinKai, PingFang SC, Hiragino Sans GB, Microsoft YaHei, sans-serif' },
     { id: 'serif', name: '衬线字体', value: 'Georgia, "Times New Roman", serif' },
     { id: 'sans', name: '无衬线字体', value: 'Arial, Helvetica, sans-serif' },
     { id: 'mono', name: '等宽字体', value: '"SF Mono", Menlo, Monaco, Consolas, monospace' },

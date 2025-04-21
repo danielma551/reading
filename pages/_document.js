@@ -9,6 +9,7 @@ class MyDocument extends Document {
           <meta name="description" content="优雅阅读应用 - 提供舒适的阅读体验，支持多种字体和背景色" />
           <meta name="theme-color" content="#f5f5f7" />
           <link rel="icon" href="/favicon.ico" />
+          <link rel="preload" href="/fonts/仓耳今楷05-W04-1.ttf" as="font" type="font/ttf" crossOrigin="anonymous" />
         </Head>
         <body>
           <Main />
