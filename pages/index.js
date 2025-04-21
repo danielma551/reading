@@ -893,6 +893,25 @@ export default function Home() {
   // 段落进度条宽度 - 基于剩余段落的计算方式
   const segmentProgressWidth = `${calculateSegmentInRemainingPercentage()}%`;
 
+  // 根据周期内的进度获取颜色 - 红色到黄色到瑞幻蓝的渐变
+  const getProgressColor = (progress) => {
+    // 使用当前句子在25句周期内的位置来决定颜色
+    // 计算当前句子在周期内的百分比
+    const positionInCycle = getPositionInSegment() + 1; // 1-25
+    const percentInCycle = (positionInCycle / cardSize) * 100; // 转为百分比
+    
+    if (percentInCycle < 33) {
+      // 红色区域 (0-33%)
+      return '#FF5252';
+    } else if (percentInCycle < 66) {
+      // 黄色区域 (33-66%)
+      return '#FFD740';
+    } else {
+      // 瑞幕蓝色区域 (66-100%)
+      return '#00A7E1';
+    }
+  };
+
   if (isReading && formattedText.length > 0) {
     // 苹果风格的阅读模式
     return (
@@ -1014,8 +1033,9 @@ export default function Home() {
               <div 
                 style={{
                   ...styles.goalProgressBarFill,
-                  backgroundColor: isDark ? '#ff9f0a' : '#ff9500',
-                  width: segmentProgressWidth
+                  backgroundColor: getProgressColor(calculateSegmentInRemainingPercentage()),
+                  width: segmentProgressWidth,
+                  transition: 'width 0.3s ease, background-color 0.3s ease'
                 }}
               />
             </div>
@@ -1179,9 +1199,9 @@ export default function Home() {
               <div style={{
                 height: '100%',
                 width: segmentProgressWidth,
-                backgroundColor: '#ff9500',
+                backgroundColor: getProgressColor(calculateSegmentInRemainingPercentage()),
                 borderRadius: '4px',
-                transition: 'width 0.3s ease'
+                transition: 'width 0.3s ease, background-color 0.3s ease'
               }} />
             </div>
           </div>
@@ -1200,7 +1220,9 @@ export default function Home() {
         <div 
           style={{
             ...styles.progressBar,
-            width: progressWidth
+            width: progressWidth,
+            backgroundColor: getProgressColor(calculateSegmentInRemainingPercentage()),
+            transition: 'width 0.3s ease, background-color 0.3s ease'
           }}
         />
 
