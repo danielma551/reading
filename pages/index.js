@@ -925,59 +925,80 @@ export default function Home() {
     // 计算当前已读句子数
     const totalSentencesRead = currentIndex - sessionStartIndex + 1;
     
-    // 计算当前阅读进度百分比（0-100%）
-    const totalProgressPercent = (totalSentencesRead / readingGoal) * 100;
+    // 定义固定周期大小为25句
+    const cycleSize = 25;
     
-    // 根据百分比确定当前周期（1-4），每个周期为25%
-    const currentCycle = Math.min(4, Math.ceil(totalProgressPercent / 25));
+    // 三条进度条各占总进度的三分之一
+    const firstSegmentMax = 33.33;
+    const secondSegmentMax = 33.33;
+    const thirdSegmentMax = 33.34;
     
-    // 计算当前周期内的进度百分比（0-100%）
-    const progressInCycle = ((totalProgressPercent - 1) % 25) / 25 * 100;
+    // 计算三个阶段的句子数
+    const firstStageMaxSentences = Math.ceil(readingGoal * (firstSegmentMax / 100));
+    const secondStageMaxSentences = Math.ceil(readingGoal * ((firstSegmentMax + secondSegmentMax) / 100));
+    
+    // 计算总周期数
+    const totalCycles = Math.ceil(readingGoal / cycleSize);
+    
+    // 计算当前处于第几个周期（从1开始）
+    const currentCycle = Math.floor((totalSentencesRead - 1) / cycleSize) + 1;
+    
+    // 计算在当前周期内的位置（1-25）
+    const positionInCycle = ((totalSentencesRead - 1) % cycleSize) + 1;
+    
+    // 周期内的百分比进度（0-100%）
+    const percentInCycle = (positionInCycle / cycleSize) * 100;
     
     // 计算三个进度条的值
     let firstSegmentProgress = 0;
     let secondSegmentProgress = 0;
     let thirdSegmentProgress = 0;
     
-    // 根据当前周期和周期内进度计算进度条
-    if (currentCycle === 1) {
-      // 第一周期（0-25%）: 只填充第一条进度条，最高到75%
-      firstSegmentProgress = (progressInCycle / 100) * 75;
-    } else if (currentCycle === 2) {
-      // 第二周期（25-50%）: 
-      if (progressInCycle < 50) {
-        // 第二周期前半部分：第一条进度条从0%填充到100%
-        firstSegmentProgress = (progressInCycle / 50) * 100;
-      } else {
-        // 第二周期后半部分：第一条已满，第二条开始填充
-        firstSegmentProgress = 100;
-        secondSegmentProgress = ((progressInCycle - 50) / 50) * 50; // 最高填充到50%
-      }
-    } else if (currentCycle === 3) {
-      // 第三周期（50-75%）: 所有进度条重置，第一条从0%填充
-      if (progressInCycle < 50) {
-        // 第三周期前半部分：第一条进度条从0%填充到100%
-        firstSegmentProgress = (progressInCycle / 50) * 100;
-      } else {
-        // 第三周期后半部分：第一条已满，第二条开始填充
-        firstSegmentProgress = 100;
-        secondSegmentProgress = ((progressInCycle - 50) / 50) * 50; // 最高填充到50%
-      }
+    // 计算每个阶段的周期数
+    const firstStageCycles = Math.ceil(firstStageMaxSentences / cycleSize);
+    const secondStageCycles = Math.ceil((secondStageMaxSentences - firstStageMaxSentences) / cycleSize);
+    const thirdStageCycles = totalCycles - firstStageCycles - secondStageCycles;
+    
+    // 确定当前周期在哪个阶段
+    if (currentCycle <= firstStageCycles) {
+      // 在第一阶段内
+      
+      // 计算当前周期在第一阶段中的位置（从1开始）
+      const cyclePositionInStage = currentCycle;
+      
+      // 计算当前周期应达到的最大进度值
+      // 最后一个周期应该达到100%，之前的周期按比例递增
+      const maxProgressForCycle = (cyclePositionInStage / firstStageCycles) * 100;
+      
+      // 根据当前周期内位置计算实际进度
+      firstSegmentProgress = (percentInCycle / 100) * maxProgressForCycle;
+      
+    } else if (currentCycle <= firstStageCycles + secondStageCycles) {
+      // 在第二阶段内
+      firstSegmentProgress = 100; // 第一条进度条已满
+      
+      // 计算当前周期在第二阶段中的位置（从1开始）
+      const cyclePositionInStage = currentCycle - firstStageCycles;
+      
+      // 计算当前周期应达到的最大进度值
+      const maxProgressForCycle = (cyclePositionInStage / secondStageCycles) * 100;
+      
+      // 根据当前周期内位置计算实际进度
+      secondSegmentProgress = (percentInCycle / 100) * maxProgressForCycle;
+      
     } else {
-      // 第四周期（75-100%）: 所有进度条重置，第一条从0%填充
-      if (progressInCycle < 33) {
-        // 第四周期第一部分：第一条进度条从0%填充到100%
-        firstSegmentProgress = (progressInCycle / 33) * 100;
-      } else if (progressInCycle < 66) {
-        // 第四周期第二部分：第一条已满，第二条从0%填充到100%
-        firstSegmentProgress = 100;
-        secondSegmentProgress = ((progressInCycle - 33) / 33) * 100;
-      } else {
-        // 第四周期第三部分：前两条已满，第三条开始填充
-        firstSegmentProgress = 100;
-        secondSegmentProgress = 100;
-        thirdSegmentProgress = ((progressInCycle - 66) / 34) * 100;
-      }
+      // 在第三阶段内
+      firstSegmentProgress = 100; // 第一条进度条已满
+      secondSegmentProgress = 100; // 第二条进度条已满
+      
+      // 计算当前周期在第三阶段中的位置（从1开始）
+      const cyclePositionInStage = currentCycle - firstStageCycles - secondStageCycles;
+      
+      // 计算当前周期应达到的最大进度值
+      const maxProgressForCycle = (cyclePositionInStage / thirdStageCycles) * 100;
+      
+      // 根据当前周期内位置计算实际进度
+      thirdSegmentProgress = (percentInCycle / 100) * maxProgressForCycle;
     }
     
     return [firstSegmentProgress, secondSegmentProgress, thirdSegmentProgress];
