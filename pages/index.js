@@ -419,7 +419,15 @@ export default function Home() {
 
   const toggleReadingMode = () => {
     if (!isReading) {
-      // 当开始阅读时，设置当前位置为会话起点
+      // 开始阅读前询问今日目标句子数
+      const input = window.prompt('请输入今日计划阅读句子数：', readingGoal);
+      if (input !== null) {
+        const goal = parseInt(input, 10);
+        if (!isNaN(goal) && goal > 0) {
+          setReadingGoal(goal);
+        }
+      }
+      // 设置当前会话起点
       setSessionStartIndex(currentIndex);
     }
     setIsReading(!isReading);
