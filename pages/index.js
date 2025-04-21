@@ -920,34 +920,65 @@ export default function Home() {
     }
   };
 
-  // 计算三个进度条段的进度 (按照总目标的三等分)
+  // 计算三个进度条段的进度
   const calculateProgressSegments = () => {
     // 计算当前已读句子数
     const totalSentencesRead = currentIndex - sessionStartIndex + 1;
     
-    // 将总目标分为三等分
-    const segmentSize = Math.ceil(readingGoal / 3);
+    // 计算当前阅读进度百分比（0-100%）
+    const totalProgressPercent = (totalSentencesRead / readingGoal) * 100;
     
-    // 第一部分进度 (总目标的前33.33%)
-    const firstSegmentProgress = Math.min(totalSentencesRead / segmentSize, 1) * 100;
+    // 根据百分比确定当前周期（1-4），每个周期为25%
+    const currentCycle = Math.min(4, Math.ceil(totalProgressPercent / 25));
     
-    // 第二部分进度 (总目标的中间33.33%)，每25句重置一次
+    // 计算当前周期内的进度百分比（0-100%）
+    const progressInCycle = ((totalProgressPercent - 1) % 25) / 25 * 100;
+    
+    // 计算三个进度条的值
+    let firstSegmentProgress = 0;
     let secondSegmentProgress = 0;
-    if (totalSentencesRead > segmentSize) {
-      // 计算在第二部分中已经读了多少句
-      const sentencesInSecondPart = totalSentencesRead - segmentSize;
-      // 每25句为一周期，计算当前周期内的进度
-      secondSegmentProgress = (sentencesInSecondPart % 25) / 25 * 100;
-      // 如果已读句子还没有到第二部分，则进度为0
-      if (sentencesInSecondPart <= 0) {
-        secondSegmentProgress = 0;
+    let thirdSegmentProgress = 0;
+    
+    // 根据当前周期和周期内进度计算进度条
+    if (currentCycle === 1) {
+      // 第一周期（0-25%）: 只填充第一条进度条，最高到75%
+      firstSegmentProgress = (progressInCycle / 100) * 75;
+    } else if (currentCycle === 2) {
+      // 第二周期（25-50%）: 
+      if (progressInCycle < 50) {
+        // 第二周期前半部分：第一条进度条从0%填充到100%
+        firstSegmentProgress = (progressInCycle / 50) * 100;
+      } else {
+        // 第二周期后半部分：第一条已满，第二条开始填充
+        firstSegmentProgress = 100;
+        secondSegmentProgress = ((progressInCycle - 50) / 50) * 50; // 最高填充到50%
+      }
+    } else if (currentCycle === 3) {
+      // 第三周期（50-75%）: 所有进度条重置，第一条从0%填充
+      if (progressInCycle < 50) {
+        // 第三周期前半部分：第一条进度条从0%填充到100%
+        firstSegmentProgress = (progressInCycle / 50) * 100;
+      } else {
+        // 第三周期后半部分：第一条已满，第二条开始填充
+        firstSegmentProgress = 100;
+        secondSegmentProgress = ((progressInCycle - 50) / 50) * 50; // 最高填充到50%
+      }
+    } else {
+      // 第四周期（75-100%）: 所有进度条重置，第一条从0%填充
+      if (progressInCycle < 33) {
+        // 第四周期第一部分：第一条进度条从0%填充到100%
+        firstSegmentProgress = (progressInCycle / 33) * 100;
+      } else if (progressInCycle < 66) {
+        // 第四周期第二部分：第一条已满，第二条从0%填充到100%
+        firstSegmentProgress = 100;
+        secondSegmentProgress = ((progressInCycle - 33) / 33) * 100;
+      } else {
+        // 第四周期第三部分：前两条已满，第三条开始填充
+        firstSegmentProgress = 100;
+        secondSegmentProgress = 100;
+        thirdSegmentProgress = ((progressInCycle - 66) / 34) * 100;
       }
     }
-    
-    // 第三部分进度 (总目标的最后33.33%)
-    const thirdSegmentProgress = totalSentencesRead > (segmentSize * 2) 
-      ? Math.min((totalSentencesRead - (segmentSize * 2)) / segmentSize, 1) * 100 
-      : 0;
     
     return [firstSegmentProgress, secondSegmentProgress, thirdSegmentProgress];
   };
@@ -1263,9 +1294,15 @@ export default function Home() {
               {/* 计算三个进度段 */}
               {(() => {
                 const [firstProgress, secondProgress, thirdProgress] = calculateProgressSegments();
+                
+                // 计算当前循环
+                const totalSentencesRead = currentIndex - sessionStartIndex + 1;
+                const cycleSize = 25;
+                const currentCycle = Math.floor(totalSentencesRead / cycleSize) + 1;
+                
                 return (
                   <>
-                    {/* 第一段进度条 (总目标的前33.33%) */}
+                    {/* 第一段进度条 */}
                     <div style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -1275,7 +1312,7 @@ export default function Home() {
                         fontSize: '10px',
                         color: isDark ? '#98989d' : '#8e8e93',
                       }}>
-                        第一部分 (1-{Math.ceil(readingGoal/3)}句)
+                        第一部分 (循环 {currentCycle})
                       </div>
                       <div style={{
                         fontSize: '10px',
@@ -1302,7 +1339,7 @@ export default function Home() {
                       }} />
                     </div>
                     
-                    {/* 第二段进度条 (25句周期，会重置) */}
+                    {/* 第二段进度条 */}
                     <div style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -1312,7 +1349,7 @@ export default function Home() {
                         fontSize: '10px',
                         color: isDark ? '#98989d' : '#8e8e93',
                       }}>
-                        第二部分 ({Math.ceil(readingGoal/3)+1}-{Math.ceil(readingGoal*2/3)}句，每25句重置)
+                        第二部分 (循环 {currentCycle})
                       </div>
                       <div style={{
                         fontSize: '10px',
@@ -1339,7 +1376,7 @@ export default function Home() {
                       }} />
                     </div>
                     
-                    {/* 第三段进度条 (总目标的最后33.33%) */}
+                    {/* 第三段进度条 */}
                     <div style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -1349,7 +1386,7 @@ export default function Home() {
                         fontSize: '10px',
                         color: isDark ? '#98989d' : '#8e8e93',
                       }}>
-                        第三部分 ({Math.ceil(readingGoal*2/3)+1}-{readingGoal}句)
+                        第三部分 (循环 {currentCycle})
                       </div>
                       <div style={{
                         fontSize: '10px',
