@@ -17,6 +17,8 @@ export default function Home() {
   const [readingGoal, setReadingGoal] = useState(400);
   const [sessionStartIndex, setSessionStartIndex] = useState(0);
   const [selectedFont, setSelectedFont] = useState('system');
+  // 新增：自定义字体状态
+  const [customFonts, setCustomFonts] = useState([]);
   const cardSize = 25; // 每组卡片的数量
 
   // 初始化客户端检测
@@ -55,6 +57,8 @@ export default function Home() {
       const savedBackgroundColor = localStorage.getItem('backgroundColor');
       const savedReadingGoal = localStorage.getItem('readingGoal');
       const savedFont = localStorage.getItem('selectedFont');
+      // 新增：加载自定义字体
+      const savedCustomFonts = localStorage.getItem('customFonts');
       
       if (savedData) {
         const parsedData = JSON.parse(savedData);
@@ -76,6 +80,28 @@ export default function Home() {
       
       if (savedFont) {
         setSelectedFont(savedFont);
+      }
+      
+      // 新增：加载并应用自定义字体
+      if (savedCustomFonts) {
+        const parsedFonts = JSON.parse(savedCustomFonts);
+        setCustomFonts(parsedFonts);
+        
+        // 为每个保存的字体创建一个 @font-face
+        parsedFonts.forEach(font => {
+          if (font.fontData) {
+            const style = document.createElement('style');
+            style.textContent = `
+              @font-face {
+                font-family: '${font.name}';
+                src: url(${font.fontData}) format('${getFontFormat(font.type)}');
+                font-weight: normal;
+                font-style: normal;
+              }
+            `;
+            document.head.appendChild(style);
+          }
+        });
       }
       
       // 尝试加载上次阅读的文本
@@ -149,20 +175,128 @@ export default function Home() {
     };
   }, []);
 
+  // 根据文件类型获取字体格式
+  const getFontFormat = (fileType) => {
+    const formats = {
+      'font/ttf': 'truetype',
+      'font/otf': 'opentype',
+      'font/woff': 'woff',
+      'font/woff2': 'woff2',
+      'application/font-woff': 'woff',
+      'application/font-woff2': 'woff2',
+      'application/octet-stream': 'truetype', // 常见的ttf文件类型
+    };
+    
+    return formats[fileType] || 'truetype'; // 默认使用 truetype
+  };
+
+  // 处理字体文件上传
+  const handleFontUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // 支持的字体格式
+    const supportedTypes = [
+      'font/ttf', 'font/otf', 'font/woff', 'font/woff2',
+      'application/font-woff', 'application/font-woff2',
+      'application/octet-stream' // 某些ttf文件可能被识别为这种类型
+    ];
+
+    // 检查文件类型
+    const isSupported = supportedTypes.includes(file.type) || 
+                        file.name.match(/\.(ttf|otf|woff|woff2)$/i);
+    
+    if (!isSupported) {
+      alert('不支持的字体格式。请上传 .ttf, .otf, .woff 或 .woff2 文件。');
+      return;
+    }
+
+    // 获取字体名称（移除扩展名）
+    let fontName = file.name.replace(/\.[^/.]+$/, "");
+    
+    // 可选：提示用户输入字体名称
+    const customName = window.prompt('请为您的字体命名（该名称将显示在字体列表中）：', fontName);
+    if (customName) {
+      fontName = customName;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      // 创建新的字体对象
+      const newFont = {
+        id: `custom-${Date.now()}`,
+        name: fontName,
+        value: `'${fontName}'`,
+        type: file.type,
+        fontData: e.target.result
+      };
+
+      // 添加到自定义字体列表
+      const updatedFonts = [...customFonts, newFont];
+      setCustomFonts(updatedFonts);
+      
+      // 保存到本地存储
+      localStorage.setItem('customFonts', JSON.stringify(updatedFonts));
+
+      // 创建 @font-face 规则
+      const style = document.createElement('style');
+      style.textContent = `
+        @font-face {
+          font-family: '${fontName}';
+          src: url(${e.target.result}) format('${getFontFormat(file.type)}');
+          font-weight: normal;
+          font-style: normal;
+        }
+      `;
+      document.head.appendChild(style);
+
+      // 自动选择新字体
+      setSelectedFont(newFont.id);
+      localStorage.setItem('selectedFont', newFont.id);
+
+      alert('字体导入成功！已自动切换到您的新字体。');
+    };
+    
+    reader.readAsDataURL(file);
+  };
+
+  // 删除自定义字体
+  const deleteCustomFont = (fontId) => {
+    const updatedFonts = customFonts.filter(font => font.id !== fontId);
+    setCustomFonts(updatedFonts);
+    localStorage.setItem('customFonts', JSON.stringify(updatedFonts));
+    
+    // 如果当前选择的是被删除的字体，则切换到系统字体
+    if (selectedFont === fontId) {
+      setSelectedFont('system');
+      localStorage.setItem('selectedFont', 'system');
+    }
+  };
+
   // 只有在客户端才加载字体和背景颜色选项
   const fontOptions = isClient ? [
     { id: 'system', name: '系统字体', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' },
     { id: 'serif', name: '衬线字体', value: 'Georgia, "Times New Roman", serif' },
     { id: 'sans', name: '无衬线字体', value: 'Arial, Helvetica, sans-serif' },
     { id: 'mono', name: '等宽字体', value: '"SF Mono", Menlo, Monaco, Consolas, monospace' },
-    { id: 'rounded', name: '圆润字体', value: '"SF Pro Rounded", "Hiragino Sans GB", "PingFang SC", sans-serif' }
+    { id: 'rounded', name: '圆润字体', value: '"SF Pro Rounded", "Hiragino Sans GB", "PingFang SC", sans-serif' },
+    ...customFonts // 合并自定义字体
   ] : [];
 
   // 获取当前所选字体
   const getCurrentFont = () => {
     if (!isClient) return '';
-    const font = fontOptions.find(font => font.id === selectedFont);
-    return font ? font.value : fontOptions[0]?.value || '';
+    
+    // 先在系统字体中查找
+    const systemFont = fontOptions.find(font => font.id === selectedFont);
+    if (systemFont) return systemFont.value;
+    
+    // 如果是自定义字体，返回字体名称
+    const customFont = customFonts.find(font => font.id === selectedFont);
+    if (customFont) return customFont.value;
+    
+    // 默认返回系统字体
+    return fontOptions[0]?.value || '';
   };
 
   // 选择字体函数
@@ -464,7 +598,8 @@ export default function Home() {
         backgroundColor: backgroundColor,
         readingGoal: readingGoal,
         selectedFont: selectedFont,
-        lastReadTextIndex: selectedSavedText
+        lastReadTextIndex: selectedSavedText,
+        customFonts: customFonts
       };
       
       // 转换为JSON字符串
@@ -527,6 +662,28 @@ export default function Home() {
           if (importedData.readingGoal) {
             setReadingGoal(importedData.readingGoal);
             localStorage.setItem('readingGoal', importedData.readingGoal.toString());
+          }
+          
+          // 导入自定义字体
+          if (importedData.customFonts && importedData.customFonts.length > 0) {
+            setCustomFonts(importedData.customFonts);
+            localStorage.setItem('customFonts', JSON.stringify(importedData.customFonts));
+            
+            // 为每个导入的字体创建一个 @font-face
+            importedData.customFonts.forEach(font => {
+              if (font.fontData) {
+                const style = document.createElement('style');
+                style.textContent = `
+                  @font-face {
+                    font-family: '${font.name}';
+                    src: url(${font.fontData}) format('${getFontFormat(font.type)}');
+                    font-weight: normal;
+                    font-style: normal;
+                  }
+                `;
+                document.head.appendChild(style);
+              }
+            });
           }
           
           // 导入字体设置
@@ -1274,15 +1431,26 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 当前会话阅读进度 */}
+          {/* 当前会话阅读进度 - 简化设计 */}
           <div style={styles.goalProgressContainer}>
             <div style={styles.goalProgressTitle}>
               当前阅读进度
             </div>
-            <div style={styles.goalProgressBar}>
+            <div style={{
+              width: '100%',
+              height: '6px',
+              backgroundColor: 'transparent',
+              borderRadius: '3px',
+              overflow: 'hidden',
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
+              marginBottom: '8px',
+            }}>
               <div 
                 style={{
-                  ...styles.goalProgressBarFill,
+                  height: '100%',
+                  backgroundColor: isGoalReached() ? 'rgba(48, 209, 88, 0.8)' : (isDark ? 'rgba(10, 132, 255, 0.8)' : 'rgba(0, 102, 204, 0.8)'),
+                  borderRadius: '3px',
+                  transition: 'width 0.3s ease',
                   width: goalProgressWidth
                 }}
               />
@@ -1306,17 +1474,26 @@ export default function Home() {
             )}
           </div>
           
-          {/* 段落进度 */}
+          {/* 段落进度 - 简化设计 */}
           <div style={styles.goalProgressContainer}>
             <div style={styles.goalProgressTitle}>
               段落进度 (每{cardSize}句)
             </div>
-            <div style={styles.goalProgressBar}>
+            <div style={{
+              width: '100%',
+              height: '6px',
+              backgroundColor: 'transparent',
+              borderRadius: '3px',
+              overflow: 'hidden',
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
+              marginBottom: '8px',
+            }}>
               <div 
                 style={{
-                  ...styles.goalProgressBarFill,
-                  backgroundColor: getProgressColor(calculateSegmentInRemainingPercentage()),
+                  height: '100%',
+                  backgroundColor: `${getProgressColor(calculateSegmentInRemainingPercentage())}cc`, // 添加透明度
                   width: segmentProgressWidth,
+                  borderRadius: '3px',
                   transition: 'width 0.3s ease, background-color 0.3s ease'
                 }}
               />
@@ -1337,7 +1514,7 @@ export default function Home() {
             </div>
           </div>
           
-          {/* 字体选择器 */}
+          {/* 字体选择器 - 添加字体导入功能 */}
           <div style={styles.fontOptionContainer}>
             <div style={styles.fontOptionLabel}>字体选择</div>
             <select 
@@ -1345,12 +1522,108 @@ export default function Home() {
               onChange={(e) => selectFont(e.target.value)}
               style={styles.fontSelect}
             >
-              {fontOptions.map(font => (
-                <option key={font.id} value={font.id}>
-                  {font.name}
-                </option>
-              ))}
+              {/* 系统字体组 */}
+              <optgroup label="系统字体">
+                {fontOptions.filter(font => !font.id.startsWith('custom-')).map(font => (
+                  <option key={font.id} value={font.id}>
+                    {font.name}
+                  </option>
+                ))}
+              </optgroup>
+              
+              {/* 自定义字体组 */}
+              {customFonts.length > 0 && (
+                <optgroup label="自定义字体">
+                  {customFonts.map(font => (
+                    <option key={font.id} value={font.id}>
+                      {font.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
+            
+            {/* 字体导入按钮 */}
+            <div style={{
+              marginTop: '12px',
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '10px'
+            }}>
+              <div style={{
+                position: 'relative',
+                overflow: 'hidden',
+                display: 'inline-block'
+              }}>
+                <button style={{
+                  border: 'none',
+                  background: isDark ? '#2c2c2e' : '#f2f2f7',
+                  padding: '6px 12px',
+                  borderRadius: '12px',
+                  fontSize: '13px',
+                  color: isDark ? '#f5f5f7' : '#1d1d1f',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}>
+                  <span>导入字体</span>
+                </button>
+                <input
+                  type="file"
+                  accept=".ttf,.otf,.woff,.woff2"
+                  onChange={handleFontUpload}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    opacity: 0,
+                    width: '100%',
+                    height: '100%',
+                    cursor: 'pointer'
+                  }}
+                />
+              </div>
+              
+              {/* 管理字体按钮（如果有自定义字体） */}
+              {customFonts.length > 0 && (
+                <button
+                  onClick={() => {
+                    // 创建一个字体管理对话框
+                    const message = customFonts.map((font, index) => 
+                      `${index + 1}. ${font.name}`
+                    ).join('\n');
+                    
+                    const fontIndex = window.prompt(
+                      `输入要删除的字体编号（1-${customFonts.length}）：\n${message}`, 
+                      ""
+                    );
+                    
+                    if (fontIndex && !isNaN(fontIndex)) {
+                      const index = parseInt(fontIndex) - 1;
+                      if (index >= 0 && index < customFonts.length) {
+                        const fontToDelete = customFonts[index];
+                        if (window.confirm(`确定要删除字体 "${fontToDelete.name}" 吗？`)) {
+                          deleteCustomFont(fontToDelete.id);
+                        }
+                      }
+                    }
+                  }}
+                  style={{
+                    border: 'none',
+                    background: isDark ? '#2c2c2e' : '#f2f2f7',
+                    padding: '6px 12px',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    color: isDark ? '#f5f5f7' : '#1d1d1f',
+                    cursor: 'pointer'
+                  }}
+                >
+                  管理字体
+                </button>
+              )}
+            </div>
+            
             <div style={{
               ...styles.fontPreview,
               fontFamily: getCurrentFont(),
@@ -1497,7 +1770,7 @@ export default function Home() {
               </div>
             </div>
             
-            {/* 三条段落进度条 */}
+            {/* 简化段落进度条设计 */}
             <div style={{
               width: '100%',
               marginBottom: '4px',
@@ -1534,17 +1807,17 @@ export default function Home() {
                     </div>
                     <div style={{
                       width: '100%',
-                      height: '8px',
-                      backgroundColor: 'transparent', // 修改为透明背景
-                      borderRadius: '4px',
+                      height: '6px',
+                      backgroundColor: 'transparent',
+                      borderRadius: '3px',
                       overflow: 'hidden',
-                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
-                      marginBottom: '10px',
+                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
+                      marginBottom: '8px',
                     }}>
                       <div style={{
                         height: '100%',
                         width: `${firstProgress}%`,
-                        backgroundColor: '#FF5252', // 红色
+                        backgroundColor: 'rgba(255, 82, 82, 0.8)', // 红色半透明
                         borderRadius: '3px',
                         transition: 'width 0.3s ease'
                       }} />
@@ -1571,17 +1844,17 @@ export default function Home() {
                     </div>
                     <div style={{
                       width: '100%',
-                      height: '8px',
-                      backgroundColor: 'transparent', // 修改为透明背景
-                      borderRadius: '4px',
+                      height: '6px',
+                      backgroundColor: 'transparent',
+                      borderRadius: '3px',
                       overflow: 'hidden',
-                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
-                      marginBottom: '10px',
+                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
+                      marginBottom: '8px',
                     }}>
                       <div style={{
                         height: '100%',
                         width: `${secondProgress}%`,
-                        backgroundColor: '#FFD740', // 黄色
+                        backgroundColor: 'rgba(255, 215, 64, 0.8)', // 黄色半透明
                         borderRadius: '3px',
                         transition: 'width 0.3s ease'
                       }} />
@@ -1608,16 +1881,16 @@ export default function Home() {
                     </div>
                     <div style={{
                       width: '100%',
-                      height: '8px',
-                      backgroundColor: 'transparent', // 修改为透明背景
-                      borderRadius: '4px',
+                      height: '6px',
+                      backgroundColor: 'transparent',
+                      borderRadius: '3px',
                       overflow: 'hidden',
-                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
+                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
                     }}>
                       <div style={{
                         height: '100%',
                         width: `${thirdProgress}%`,
-                        backgroundColor: '#00A7E1', // 瑞幻蓝
+                        backgroundColor: 'rgba(0, 167, 225, 0.8)', // 瑞幻蓝半透明
                         borderRadius: '3px',
                         transition: 'width 0.3s ease'
                       }} />
@@ -1741,13 +2014,17 @@ export default function Home() {
           </div>
         </div>
 
-        {/* 进度条 */}
+        {/* 底部进度条 - 简化设计 */}
         <div 
           style={{
-            ...styles.progressBar,
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            height: '3px', // 减小高度
+            backgroundColor: `${getProgressColor(calculateSegmentInRemainingPercentage())}cc`, // 添加透明度
+            transition: 'width 0.3s ease, background-color 0.3s ease',
             width: progressWidth,
-            backgroundColor: getProgressColor(calculateSegmentInRemainingPercentage()),
-            transition: 'width 0.3s ease, background-color 0.3s ease'
+            boxShadow: '0 0 3px rgba(0,0,0,0.1)', // 添加微妙阴影
           }}
         />
 
@@ -1799,7 +2076,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 字体选择器 */}
+          {/* 字体选择器 - 添加字体导入功能 */}
           <div style={styles.fontOptionContainer}>
             <div style={styles.fontOptionLabel}>字体选择</div>
             <select 
@@ -1807,12 +2084,108 @@ export default function Home() {
               onChange={(e) => selectFont(e.target.value)}
               style={styles.fontSelect}
             >
-              {fontOptions.map(font => (
-                <option key={font.id} value={font.id}>
-                  {font.name}
-                </option>
-              ))}
+              {/* 系统字体组 */}
+              <optgroup label="系统字体">
+                {fontOptions.filter(font => !font.id.startsWith('custom-')).map(font => (
+                  <option key={font.id} value={font.id}>
+                    {font.name}
+                  </option>
+                ))}
+              </optgroup>
+              
+              {/* 自定义字体组 */}
+              {customFonts.length > 0 && (
+                <optgroup label="自定义字体">
+                  {customFonts.map(font => (
+                    <option key={font.id} value={font.id}>
+                      {font.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
+            
+            {/* 字体导入按钮 */}
+            <div style={{
+              marginTop: '12px',
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '10px'
+            }}>
+              <div style={{
+                position: 'relative',
+                overflow: 'hidden',
+                display: 'inline-block'
+              }}>
+                <button style={{
+                  border: 'none',
+                  background: isDark ? '#2c2c2e' : '#f2f2f7',
+                  padding: '6px 12px',
+                  borderRadius: '12px',
+                  fontSize: '13px',
+                  color: isDark ? '#f5f5f7' : '#1d1d1f',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}>
+                  <span>导入字体</span>
+                </button>
+                <input
+                  type="file"
+                  accept=".ttf,.otf,.woff,.woff2"
+                  onChange={handleFontUpload}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    opacity: 0,
+                    width: '100%',
+                    height: '100%',
+                    cursor: 'pointer'
+                  }}
+                />
+              </div>
+              
+              {/* 管理字体按钮（如果有自定义字体） */}
+              {customFonts.length > 0 && (
+                <button
+                  onClick={() => {
+                    // 创建一个字体管理对话框
+                    const message = customFonts.map((font, index) => 
+                      `${index + 1}. ${font.name}`
+                    ).join('\n');
+                    
+                    const fontIndex = window.prompt(
+                      `输入要删除的字体编号（1-${customFonts.length}）：\n${message}`, 
+                      ""
+                    );
+                    
+                    if (fontIndex && !isNaN(fontIndex)) {
+                      const index = parseInt(fontIndex) - 1;
+                      if (index >= 0 && index < customFonts.length) {
+                        const fontToDelete = customFonts[index];
+                        if (window.confirm(`确定要删除字体 "${fontToDelete.name}" 吗？`)) {
+                          deleteCustomFont(fontToDelete.id);
+                        }
+                      }
+                    }
+                  }}
+                  style={{
+                    border: 'none',
+                    background: isDark ? '#2c2c2e' : '#f2f2f7',
+                    padding: '6px 12px',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    color: isDark ? '#f5f5f7' : '#1d1d1f',
+                    cursor: 'pointer'
+                  }}
+                >
+                  管理字体
+                </button>
+              )}
+            </div>
+            
             <div style={{
               ...styles.fontPreview,
               fontFamily: getCurrentFont(),
