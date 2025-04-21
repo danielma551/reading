@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 
 export default function Home() {
+  // 添加客户端渲染检测状态
+  const [isClient, setIsClient] = useState(false);
   const [text, setText] = useState('');
   const [formattedText, setFormattedText] = useState([]);
   const [isReading, setIsReading] = useState(false);
@@ -14,27 +16,13 @@ export default function Home() {
   const [backgroundColor, setBackgroundColor] = useState('');
   const [readingGoal, setReadingGoal] = useState(400);
   const [sessionStartIndex, setSessionStartIndex] = useState(0);
+  const [selectedFont, setSelectedFont] = useState('system');
   const cardSize = 25; // 每组卡片的数量
 
-  // 背景颜色选项
-  const backgroundColors = {
-    light: [
-      { name: '默认', value: '#f5f5f7' },
-      { name: '米色', value: '#f8f5e4' },
-      { name: '淡蓝', value: '#f0f5fa' },
-      { name: '淡绿', value: '#f2f9f5' },
-      { name: '淡粉', value: '#fdf2f4' }
-    ],
-    dark: [
-      { name: '默认', value: '#000000' },
-      { name: '深蓝', value: '#1a1c2c' },
-      { name: '深棕', value: '#1f1b1c' },
-      { name: '深绿', value: '#0f1e1b' },
-      { name: '深紫', value: '#1a1725' }
-    ]
-  };
-
+  // 初始化客户端检测
   useEffect(() => {
+    setIsClient(true);
+    
     // 检测深色模式
     const darkModeMedia = window.matchMedia('(prefers-color-scheme: dark)');
     if (darkModeMedia.matches) {
@@ -66,6 +54,7 @@ export default function Home() {
       const positionsData = localStorage.getItem('lastPositions');
       const savedBackgroundColor = localStorage.getItem('backgroundColor');
       const savedReadingGoal = localStorage.getItem('readingGoal');
+      const savedFont = localStorage.getItem('selectedFont');
       
       if (savedData) {
         const parsedData = JSON.parse(savedData);
@@ -83,6 +72,10 @@ export default function Home() {
 
       if (savedReadingGoal) {
         setReadingGoal(parseInt(savedReadingGoal));
+      }
+      
+      if (savedFont) {
+        setSelectedFont(savedFont);
       }
       
       // 尝试加载上次阅读的文本
@@ -155,6 +148,47 @@ export default function Home() {
       window.removeEventListener('resize', updateFontSize);
     };
   }, []);
+
+  // 只有在客户端才加载字体和背景颜色选项
+  const fontOptions = isClient ? [
+    { id: 'system', name: '系统字体', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif' },
+    { id: 'serif', name: '衬线字体', value: 'Georgia, "Times New Roman", serif' },
+    { id: 'sans', name: '无衬线字体', value: 'Arial, Helvetica, sans-serif' },
+    { id: 'mono', name: '等宽字体', value: '"SF Mono", Menlo, Monaco, Consolas, monospace' },
+    { id: 'rounded', name: '圆润字体', value: '"SF Pro Rounded", "Hiragino Sans GB", "PingFang SC", sans-serif' }
+  ] : [];
+
+  // 获取当前所选字体
+  const getCurrentFont = () => {
+    if (!isClient) return '';
+    const font = fontOptions.find(font => font.id === selectedFont);
+    return font ? font.value : fontOptions[0]?.value || '';
+  };
+
+  // 选择字体函数
+  const selectFont = (fontId) => {
+    if (!isClient) return;
+    setSelectedFont(fontId);
+    localStorage.setItem('selectedFont', fontId);
+  };
+
+  // 背景颜色选项
+  const backgroundColors = isClient ? {
+    light: [
+      { name: '默认', value: '#f5f5f7' },
+      { name: '米色', value: '#f8f5e4' },
+      { name: '淡蓝', value: '#f0f5fa' },
+      { name: '淡绿', value: '#f2f9f5' },
+      { name: '淡粉', value: '#fdf2f4' }
+    ],
+    dark: [
+      { name: '默认', value: '#000000' },
+      { name: '深蓝', value: '#1a1c2c' },
+      { name: '深棕', value: '#1f1b1c' },
+      { name: '深绿', value: '#0f1e1b' },
+      { name: '深紫', value: '#1a1725' }
+    ]
+  } : { light: [], dark: [] };
 
   // 保存当前阅读位置
   useEffect(() => {
@@ -273,13 +307,16 @@ export default function Home() {
 
   // 获取当前应用的背景颜色
   const getCurrentBackgroundColor = () => {
+    if (!isClient) return '#f5f5f7'; // 服务器端渲染时的默认值
     if (backgroundColor) {
       return backgroundColor;
     }
-    return isDark ? backgroundColors.dark[0].value : backgroundColors.light[0].value;
+    return isDark ? backgroundColors.dark[0]?.value || '#000000' : backgroundColors.light[0]?.value || '#f5f5f7';
   };
 
   const formatText = (inputText) => {
+    if (!isClient || !inputText) return; // 服务器端渲染时不执行
+    
     const sentences = inputText
       .split(/([，。？；])/g)
       .reduce((acc, curr, i, arr) => {
@@ -409,6 +446,29 @@ export default function Home() {
     toggleMenu();
   };
 
+  // 如果在服务器端或者尚未完成水合，显示最小的初始加载UI
+  if (!isClient) {
+    return (
+      <div style={{
+        height: '100vh',
+        width: '100vw',
+        backgroundColor: '#f5f5f7',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+      }}>
+        <div style={{
+          fontSize: '18px',
+          color: '#1d1d1f',
+          textAlign: 'center'
+        }}>
+          加载中...
+        </div>
+      </div>
+    );
+  }
+
   // 苹果风格样式 - 添加移动端响应式样式
   const styles = {
     container: {
@@ -416,10 +476,10 @@ export default function Home() {
       width: '100vw',
       backgroundColor: getCurrentBackgroundColor(),
       color: isDark ? '#f5f5f7' : '#1d1d1f',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      fontFamily: getCurrentFont(),
       overflow: 'hidden',
       position: 'relative',
-      transition: 'background-color 0.3s ease, color 0.3s ease',
+      transition: 'background-color 0.3s ease, color 0.3s ease, font-family 0.3s ease',
       WebkitTapHighlightColor: 'transparent', // 防止移动端点击出现蓝色高亮
     },
     header: {
@@ -533,8 +593,8 @@ export default function Home() {
       flexDirection: 'column',
       backgroundColor: getCurrentBackgroundColor(),
       color: isDark ? '#f5f5f7' : '#1d1d1f',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-      transition: 'background-color 0.3s ease, color 0.3s ease'
+      fontFamily: getCurrentFont(),
+      transition: 'background-color 0.3s ease, color 0.3s ease, font-family 0.3s ease'
     },
     libraryHeader: {
       height: '44px',
@@ -782,6 +842,44 @@ export default function Home() {
       animation: 'fadeOut 3s forwards 2s',
       zIndex: 2,
     },
+    fontOptionContainer: {
+      display: 'flex',
+      flexDirection: 'column',
+      marginBottom: '24px',
+    },
+    fontOptionLabel: {
+      fontSize: '15px',
+      marginBottom: '12px',
+      color: isDark ? '#98989d' : '#8e8e93',
+      textAlign: 'center',
+    },
+    fontSelect: {
+      padding: '10px',
+      borderRadius: '8px',
+      border: `1px solid ${isDark ? '#424245' : '#d2d2d7'}`,
+      backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+      color: isDark ? '#f5f5f7' : '#1d1d1f',
+      fontSize: '15px',
+      width: '100%',
+      maxWidth: '300px',
+      margin: '0 auto',
+      fontFamily: getCurrentFont(),
+      appearance: 'none',
+      backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDark ? '%23f5f5f7' : '%231d1d1f'}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'right 10px center',
+      backgroundSize: '16px',
+    },
+    fontPreview: {
+      marginTop: '16px',
+      padding: '12px',
+      borderRadius: '8px',
+      backgroundColor: isDark ? 'rgba(60, 60, 60, 0.5)' : 'rgba(240, 240, 240, 0.5)',
+      textAlign: 'center',
+      fontSize: '16px',
+      maxWidth: '300px',
+      margin: '0 auto',
+    },
   };
 
   // 阅读时的进度条宽度
@@ -937,6 +1035,28 @@ export default function Home() {
             </div>
           </div>
           
+          {/* 字体选择器 */}
+          <div style={styles.fontOptionContainer}>
+            <div style={styles.fontOptionLabel}>字体选择</div>
+            <select 
+              value={selectedFont}
+              onChange={(e) => selectFont(e.target.value)}
+              style={styles.fontSelect}
+            >
+              {fontOptions.map(font => (
+                <option key={font.id} value={font.id}>
+                  {font.name}
+                </option>
+              ))}
+            </select>
+            <div style={{
+              ...styles.fontPreview,
+              fontFamily: getCurrentFont(),
+            }}>
+              字体预览 - 這是中文示例
+            </div>
+          </div>
+
           {/* 背景颜色选择器 */}
           <div style={{marginBottom: '24px'}}>
             <div style={styles.colorPickerLabel}>背景颜色</div>
@@ -956,36 +1076,64 @@ export default function Home() {
             </div>
           </div>
           
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            marginBottom: '20px'
-          }}>
-            <div style={{
-              fontSize: '15px',
-              marginBottom: '12px',
-              color: isDark ? '#98989d' : '#8e8e93'
-            }}>字体大小</div>
+          <div style={styles.fontOptionContainer}>
+            <div style={styles.fontOptionLabel}>字体大小</div>
             
-            <div style={{display: 'flex', gap: '16px', alignItems: 'center'}}>
+            <div style={{
+              display: 'flex', 
+              gap: '16px', 
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto',
+              maxWidth: '300px',
+              backgroundColor: isDark ? 'rgba(60, 60, 60, 0.5)' : 'rgba(240, 240, 240, 0.5)',
+              borderRadius: '8px',
+              padding: '12px'
+            }}>
               <button 
                 onClick={() => setFontSize(prev => Math.max(16, prev - 4))}
-                style={styles.iconButton}
+                style={{
+                  ...styles.iconButton,
+                  fontSize: '16px',
+                  width: '36px',
+                  height: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '50%',
+                  backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+                  color: isDark ? '#f5f5f7' : '#1d1d1f',
+                  border: `1px solid ${isDark ? '#424245' : '#d2d2d7'}`,
+                }}
               >
                 A-
               </button>
               
               <div style={{
                 fontSize: '17px',
-                color: isDark ? '#f5f5f7' : '#1d1d1f'
+                color: isDark ? '#f5f5f7' : '#1d1d1f',
+                fontWeight: '500',
+                minWidth: '70px',
+                textAlign: 'center'
               }}>
                 {fontSize}px
               </div>
               
               <button 
                 onClick={() => setFontSize(prev => Math.min(80, prev + 4))}
-                style={styles.iconButton}
+                style={{
+                  ...styles.iconButton,
+                  fontSize: '16px',
+                  width: '36px',
+                  height: '36px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '50%',
+                  backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+                  color: isDark ? '#f5f5f7' : '#1d1d1f',
+                  border: `1px solid ${isDark ? '#424245' : '#d2d2d7'}`,
+                }}
               >
                 A+
               </button>
@@ -1101,6 +1249,28 @@ export default function Home() {
               >
                 {isDark ? '浅色' : '深色'}
               </button>
+            </div>
+          </div>
+
+          {/* 字体选择器 */}
+          <div style={styles.fontOptionContainer}>
+            <div style={styles.fontOptionLabel}>字体选择</div>
+            <select 
+              value={selectedFont}
+              onChange={(e) => selectFont(e.target.value)}
+              style={styles.fontSelect}
+            >
+              {fontOptions.map(font => (
+                <option key={font.id} value={font.id}>
+                  {font.name}
+                </option>
+              ))}
+            </select>
+            <div style={{
+              ...styles.fontPreview,
+              fontFamily: getCurrentFont(),
+            }}>
+              字体预览 - 這是中文示例
             </div>
           </div>
 
