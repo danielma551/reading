@@ -454,6 +454,119 @@ export default function Home() {
     toggleMenu();
   };
 
+  // 新增：导出数据功能
+  const exportData = () => {
+    try {
+      // 收集所有需要保存的数据
+      const dataToExport = {
+        savedTexts: savedTexts,
+        lastPositions: lastPositions,
+        backgroundColor: backgroundColor,
+        readingGoal: readingGoal,
+        selectedFont: selectedFont,
+        lastReadTextIndex: selectedSavedText
+      };
+      
+      // 转换为JSON字符串
+      const jsonData = JSON.stringify(dataToExport);
+      
+      // 创建一个Blob对象
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      // 创建一个下载链接
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `阅读器数据备份_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      
+      // 清理
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+      
+      alert('数据导出成功！您可以在其他设备上导入此文件。');
+    } catch (error) {
+      console.error('导出数据失败:', error);
+      alert('导出数据失败，请重试。');
+    }
+  };
+  
+  // 新增：导入数据功能
+  const importData = (event) => {
+    try {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedData = JSON.parse(e.target.result);
+          
+          // 导入保存的文本
+          if (importedData.savedTexts) {
+            setSavedTexts(importedData.savedTexts);
+            localStorage.setItem('savedTexts', JSON.stringify(importedData.savedTexts));
+          }
+          
+          // 导入位置信息
+          if (importedData.lastPositions) {
+            setLastPositions(importedData.lastPositions);
+            localStorage.setItem('lastPositions', JSON.stringify(importedData.lastPositions));
+          }
+          
+          // 导入背景颜色
+          if (importedData.backgroundColor) {
+            setBackgroundColor(importedData.backgroundColor);
+            localStorage.setItem('backgroundColor', importedData.backgroundColor);
+          }
+          
+          // 导入阅读目标
+          if (importedData.readingGoal) {
+            setReadingGoal(importedData.readingGoal);
+            localStorage.setItem('readingGoal', importedData.readingGoal.toString());
+          }
+          
+          // 导入字体设置
+          if (importedData.selectedFont) {
+            setSelectedFont(importedData.selectedFont);
+            localStorage.setItem('selectedFont', importedData.selectedFont);
+          }
+          
+          // 导入上次阅读的文本索引
+          if (importedData.lastReadTextIndex !== null && importedData.lastReadTextIndex !== undefined) {
+            localStorage.setItem('lastReadTextIndex', importedData.lastReadTextIndex.toString());
+            
+            // 如果有上次阅读的文本，加载它
+            if (importedData.savedTexts && importedData.savedTexts[importedData.lastReadTextIndex]) {
+              setSelectedSavedText(importedData.lastReadTextIndex);
+              setText(importedData.savedTexts[importedData.lastReadTextIndex].content);
+              formatText(importedData.savedTexts[importedData.lastReadTextIndex].content);
+              
+              // 设置上次的阅读位置
+              if (importedData.lastPositions && importedData.lastPositions[importedData.lastReadTextIndex] !== undefined) {
+                setCurrentIndex(importedData.lastPositions[importedData.lastReadTextIndex]);
+                setSessionStartIndex(importedData.lastPositions[importedData.lastReadTextIndex]);
+              }
+            }
+          }
+          
+          alert('数据导入成功！');
+        } catch (parseError) {
+          console.error('解析导入数据失败:', parseError);
+          alert('导入失败：文件格式不正确。');
+        }
+      };
+      
+      reader.readAsText(file);
+    } catch (error) {
+      console.error('导入数据失败:', error);
+      alert('导入数据失败，请重试。');
+    }
+  };
+
   // 如果在服务器端或者尚未完成水合，显示最小的初始加载UI
   if (!isClient) {
     return (
@@ -1081,6 +1194,86 @@ export default function Home() {
             </div>
           </div>
 
+          {/* 新增：数据同步功能 */}
+          <div style={{
+            backgroundColor: isDark ? 'rgba(60, 60, 60, 0.5)' : 'rgba(240, 240, 240, 0.5)',
+            borderRadius: '12px',
+            padding: '16px',
+            marginBottom: '24px'
+          }}>
+            <div style={{
+              fontSize: '15px',
+              fontWeight: '600',
+              marginBottom: '12px',
+              color: isDark ? '#f5f5f7' : '#1d1d1f',
+              textAlign: 'center'
+            }}>
+              跨设备数据同步
+            </div>
+            
+            <div style={{
+              fontSize: '13px',
+              color: isDark ? '#98989d' : '#8e8e93',
+              marginBottom: '16px',
+              textAlign: 'center'
+            }}>
+              导出您的数据，然后在其他设备上导入，实现数据同步
+            </div>
+            
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <button
+                onClick={exportData}
+                style={{
+                  ...styles.button,
+                  backgroundColor: isDark ? '#2c2c2e' : '#e5e5ea',
+                  color: isDark ? '#f5f5f7' : '#1d1d1f',
+                  fontWeight: '500',
+                  fontSize: '14px',
+                  padding: '10px 16px'
+                }}
+              >
+                导出数据备份
+              </button>
+              
+              <div style={{
+                position: 'relative',
+                overflow: 'hidden'
+              }}>
+                <button
+                  style={{
+                    ...styles.button,
+                    backgroundColor: isDark ? '#2c2c2e' : '#e5e5ea',
+                    color: isDark ? '#f5f5f7' : '#1d1d1f',
+                    fontWeight: '500',
+                    fontSize: '14px',
+                    padding: '10px 16px',
+                    width: '100%'
+                  }}
+                >
+                  导入数据备份
+                </button>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={importData}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    opacity: 0,
+                    width: '100%',
+                    height: '100%',
+                    cursor: 'pointer'
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* 当前会话阅读进度 */}
           <div style={styles.goalProgressContainer}>
             <div style={styles.goalProgressTitle}>
@@ -1094,10 +1287,7 @@ export default function Home() {
                 }}
               />
             </div>
-            <div style={{
-              ...styles.goalProgressText,
-              ...(isGoalReached() ? styles.goalProgressCompleted : {})
-            }}>
+            <div style={styles.goalProgressText}>
               {calculateSessionProgress()} / {readingGoal} 句
               {isGoalReached() ? ' · 目标达成！' : ''}
             </div>
@@ -1345,7 +1535,7 @@ export default function Home() {
                     <div style={{
                       width: '100%',
                       height: '8px',
-                      backgroundColor: isDark ? '#38383a' : '#e5e5ea',
+                      backgroundColor: 'transparent', // 修改为透明背景
                       borderRadius: '4px',
                       overflow: 'hidden',
                       border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
@@ -1382,7 +1572,7 @@ export default function Home() {
                     <div style={{
                       width: '100%',
                       height: '8px',
-                      backgroundColor: isDark ? '#38383a' : '#e5e5ea',
+                      backgroundColor: 'transparent', // 修改为透明背景
                       borderRadius: '4px',
                       overflow: 'hidden',
                       border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
@@ -1419,7 +1609,7 @@ export default function Home() {
                     <div style={{
                       width: '100%',
                       height: '8px',
-                      backgroundColor: isDark ? '#38383a' : '#e5e5ea',
+                      backgroundColor: 'transparent', // 修改为透明背景
                       borderRadius: '4px',
                       overflow: 'hidden',
                       border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
@@ -1436,6 +1626,109 @@ export default function Home() {
                 );
               })()}
             </div>
+            
+            {/* 添加简洁的文本导航控件 */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginTop: '8px',
+              borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
+              paddingTop: '8px',
+              width: '100%'
+            }}>
+              <div style={{
+                fontSize: '11px', 
+                color: isDark ? '#98989d' : '#8e8e93',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px'
+              }}>
+                <span>文本导航:</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={formattedText.length}
+                  value={currentIndex + 1}
+                  onChange={(e) => {
+                    const pageNum = parseInt(e.target.value);
+                    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= formattedText.length) {
+                      setCurrentIndex(pageNum - 1);
+                    }
+                  }}
+                  style={{
+                    width: '50px',
+                    padding: '3px 5px',
+                    borderRadius: '4px',
+                    border: `1px solid ${isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)'}`,
+                    backgroundColor: isDark ? 'rgba(30,30,30,0.5)' : 'rgba(255,255,255,0.5)',
+                    color: isDark ? '#f5f5f7' : '#1d1d1f',
+                    fontSize: '11px',
+                    textAlign: 'center'
+                  }}
+                />
+                <span>/</span>
+                <span>{formattedText.length}</span>
+              </div>
+              
+              <div style={{
+                display: 'flex',
+                gap: '8px'
+              }}>
+                <button
+                  onClick={() => setCurrentIndex(0)}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: isDark ? '#0a84ff' : '#06c',
+                    fontSize: '11px',
+                    padding: '0',
+                    cursor: 'pointer',
+                    opacity: 0.7,
+                    transition: 'opacity 0.2s ease'
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.opacity = 1 }}
+                  onMouseOut={(e) => { e.currentTarget.style.opacity = 0.7 }}
+                >
+                  首页
+                </button>
+                <button
+                  onClick={() => setCurrentIndex(Math.floor(formattedText.length / 2) - 1)}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: isDark ? '#0a84ff' : '#06c',
+                    fontSize: '11px',
+                    padding: '0',
+                    cursor: 'pointer',
+                    opacity: 0.7,
+                    transition: 'opacity 0.2s ease'
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.opacity = 1 }}
+                  onMouseOut={(e) => { e.currentTarget.style.opacity = 0.7 }}
+                >
+                  中间
+                </button>
+                <button
+                  onClick={() => setCurrentIndex(formattedText.length - 1)}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: isDark ? '#0a84ff' : '#06c',
+                    fontSize: '11px',
+                    padding: '0',
+                    cursor: 'pointer',
+                    opacity: 0.7,
+                    transition: 'opacity 0.2s ease'
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.opacity = 1 }}
+                  onMouseOut={(e) => { e.currentTarget.style.opacity = 0.7 }}
+                >
+                  末页
+                </button>
+              </div>
+            </div>
+            
           </div>
           
           <div style={styles.textContent}>
