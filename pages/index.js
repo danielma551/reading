@@ -35,17 +35,26 @@ export default function Home() {
 
     // 设置字体大小，根据屏幕宽度自动调整
     function updateFontSize() {
-      const width = window.innerWidth;
-      if (width < 480) {
-        // 针对较小的手机屏幕
-        setFontSize(24);
-      } else if (width < 768) {
-        // 针对大一点的手机屏幕
-        setFontSize(32);
-      } else if (width < 1024) {
-        setFontSize(48);
+      // 检查是否有保存的字体大小设置
+      const savedFontSize = localStorage.getItem('fontSize');
+      
+      if (savedFontSize) {
+        // 如果有保存的字体大小，使用保存的设置
+        setFontSize(parseInt(savedFontSize));
       } else {
-        setFontSize(60);
+        // 否则根据屏幕宽度自动调整
+        const width = window.innerWidth;
+        if (width < 480) {
+          // 针对较小的手机屏幕
+          setFontSize(24);
+        } else if (width < 768) {
+          // 针对大一点的手机屏幕
+          setFontSize(32);
+        } else if (width < 1024) {
+          setFontSize(48);
+        } else {
+          setFontSize(60);
+        }
       }
     }
     
@@ -353,6 +362,13 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem('readingGoal', readingGoal.toString());
   }, [readingGoal]);
+  
+  // 保存字体大小到本地存储
+  useEffect(() => {
+    if (isClient && fontSize) {
+      localStorage.setItem('fontSize', fontSize.toString());
+    }
+  }, [fontSize, isClient]);
 
   // 计算当前阅读会话的进度
   const calculateSessionProgress = () => {
@@ -1811,7 +1827,11 @@ export default function Home() {
               padding: '12px'
             }}>
               <button 
-                onClick={() => setFontSize(prev => Math.max(16, prev - 4))}
+                onClick={() => {
+                  const newSize = Math.max(16, fontSize - 4);
+                  setFontSize(newSize);
+                  // 保存到本地存储 (实际保存由useEffect处理)
+                }}
                 style={{
                   ...styles.iconButton,
                   fontSize: '16px',
@@ -1840,7 +1860,11 @@ export default function Home() {
               </div>
               
               <button 
-                onClick={() => setFontSize(prev => Math.min(80, prev + 4))}
+                onClick={() => {
+                  const newSize = Math.min(80, fontSize + 4);
+                  setFontSize(newSize);
+                  // 保存到本地存储 (实际保存由useEffect处理)
+                }}
                 style={{
                   ...styles.iconButton,
                   fontSize: '16px',
@@ -1857,6 +1881,46 @@ export default function Home() {
               >
                 A+
               </button>
+            </div>
+            
+            {/* 预设字体大小 */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              gap: '8px',
+              marginTop: '12px'
+            }}>
+              {[18, 24, 32, 40, 48, 60].map(size => (
+                <button
+                  key={size}
+                  onClick={() => setFontSize(size)}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    backgroundColor: fontSize === size 
+                      ? (isDark ? '#0a84ff' : '#0071e3') 
+                      : (isDark ? '#2c2c2e' : '#f2f2f7'),
+                    color: fontSize === size 
+                      ? '#ffffff' 
+                      : (isDark ? '#f5f5f7' : '#1d1d1f'),
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {size}px
+                </button>
+              ))}
+            </div>
+            
+            <div style={{
+              marginTop: '12px',
+              fontSize: '13px',
+              color: isDark ? '#86868b' : '#8e8e93',
+              textAlign: 'center'
+            }}>
+              设置将自动保存
             </div>
           </div>
         </div>
@@ -1881,6 +1945,58 @@ export default function Home() {
                 color: isDark ? '#f5f5f7' : '#1d1d1f',
               }}>
                 阅读进度: {calculateSessionProgress()}/{readingGoal}句 ({Math.round(calculateOverallPercentage())}%)
+              </div>
+              
+              {/* 添加快速字体大小调整按钮 */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <button
+                  onClick={() => setFontSize(Math.max(16, fontSize - 4))}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: isDark ? '#0a84ff' : '#06c',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    padding: '0',
+                    width: '20px',
+                    height: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                >
+                  A-
+                </button>
+                <span style={{
+                  fontSize: '10px',
+                  color: isDark ? '#86868b' : '#8e8e93',
+                }}>
+                  {fontSize}px
+                </span>
+                <button
+                  onClick={() => setFontSize(Math.min(80, fontSize + 4))}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    color: isDark ? '#0a84ff' : '#06c',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    padding: '0',
+                    width: '20px',
+                    height: '20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                >
+                  A+
+                </button>
               </div>
             </div>
             
