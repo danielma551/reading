@@ -303,7 +303,7 @@ export default function Home() {
 
   // 获取当前所选字体
   const getCurrentFont = () => {
-    if (!isClient) return '';
+    if (!isClient) return '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'; // 服务器端渲染时的默认值
     
     // 先在系统字体中查找
     const systemFont = fontOptions.find(font => font.id === selectedFont);
@@ -314,7 +314,7 @@ export default function Home() {
     if (customFont) return customFont.value;
     
     // 默认返回系统字体
-    return fontOptions[0]?.value || '';
+    return 'CangErJinKai, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
   };
 
   // 选择字体函数
@@ -491,7 +491,7 @@ export default function Home() {
 
   // 获取当前应用的背景颜色
   const getCurrentBackgroundColor = () => {
-    if (!isClient) return '#f5f5f7'; // 服务器端渲染时的默认值
+    if (!isClient) return isDark ? '#000000' : '#f5f5f7'; // 服务器端渲染时的默认值
     if (backgroundColor) {
       return backgroundColor;
     }
@@ -897,20 +897,25 @@ export default function Home() {
         clearTimeout(timer);
       };
     }
-  }, [showCelebration]); // 添加showCelebration作为依赖项
+  }, [showCelebration, setShowCelebration, setIsReading]); // 添加所有使用的状态更新函数到依赖数组中
 
   // 显示庆祝动画
-  if (showCelebration) {
+  if (showCelebration && isClient) { // 确保只在客户端渲染庆祝动画
+    const bgColor = getCurrentBackgroundColor();
+    const fontFamily = getCurrentFont();
+    const textColor = isDark ? '#f5f5f7' : '#1d1d1f';
+    const buttonBgColor = isDark ? 'rgba(60, 60, 60, 0.6)' : 'rgba(240, 240, 240, 0.6)';
+    
     return (
       <div style={{
         height: '100vh',
         width: '100vw',
-        backgroundColor: getCurrentBackgroundColor(),
-        color: isDark ? '#f5f5f7' : '#1d1d1f',
+        backgroundColor: bgColor,
+        color: textColor,
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        fontFamily: getCurrentFont(),
+        fontFamily: fontFamily,
         flexDirection: 'column',
         position: 'fixed',
         top: 0,
@@ -935,7 +940,7 @@ export default function Home() {
             fontSize: '28px',
             fontWeight: '700',
             marginBottom: '8px',
-            color: isDark ? '#f5f5f7' : '#1d1d1f'
+            color: textColor
           }}>
             恭喜你！
           </div>
@@ -944,7 +949,7 @@ export default function Home() {
             fontSize: '20px',
             fontWeight: '500',
             marginBottom: '24px',
-            color: isDark ? '#f5f5f7' : '#1d1d1f'
+            color: textColor
           }}>
             已完成今日阅读目标 {completedSentences} 句
           </div>
@@ -967,8 +972,8 @@ export default function Home() {
               padding: '8px 16px',
               borderRadius: '8px',
               border: 'none',
-              backgroundColor: isDark ? 'rgba(60, 60, 60, 0.6)' : 'rgba(240, 240, 240, 0.6)',
-              color: isDark ? '#f5f5f7' : '#1d1d1f',
+              backgroundColor: buttonBgColor,
+              color: textColor,
               fontSize: '14px',
               cursor: 'pointer',
               transition: 'all 0.2s ease'
