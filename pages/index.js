@@ -879,75 +879,13 @@ export default function Home() {
     }
   };
 
-  // 如果在服务器端或者尚未完成水合，显示最小的初始加载UI
-  if (!isClient) {
-    return (
-      <div style={{
-        height: '100vh',
-        width: '100vw',
-        backgroundColor: '#f5f5f7',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
-      }}>
-        <div style={{
-          fontSize: '18px',
-          color: '#1d1d1f',
-          textAlign: 'center'
-        }}>
-          加载中...
-        </div>
-      </div>
-    );
-  }
-  
-  // 显示加载中状态
-  if (isLoading) {
-    return (
-      <div style={{
-        height: '100vh',
-        width: '100vw',
-        backgroundColor: getCurrentBackgroundColor(),
-        color: isDark ? '#f5f5f7' : '#1d1d1f',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        fontFamily: getCurrentFont(),
-        flexDirection: 'column',
-        transition: 'background-color 0.3s ease, color 0.3s ease, font-family 0.3s ease'
-      }}>
-        <div style={{
-          fontSize: '22px',
-          fontWeight: '600',
-          marginBottom: '16px'
-        }}>
-          加载中...
-        </div>
-        <div style={{
-          width: '60px',
-          height: '60px',
-          border: `4px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
-          borderRadius: '50%',
-          borderTopColor: isDark ? '#0a84ff' : '#06c',
-          animation: 'spin 1s linear infinite'
-        }} />
-        <style jsx global>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    );
-  }
-  
-  // 显示庆祝动画
-  if (showCelebration) {
-    // 动画播放完毕后返回主页
-    const animationDuration = 5000; // 假设GIF动画持续5秒钟，可以根据实际情况调整
-    
-    useEffect(() => {
+  // 管理庆祝动画的useEffect
+  useEffect(() => {
+    // 只有当showCelebration为true时才执行
+    if (showCelebration) {
+      // 动画播放完毕后返回主页
+      const animationDuration = 5000; // 假设GIF动画持续5秒钟，可以根据实际情况调整
+      
       // 设置一个定时器，在动画结束后自动返回主页面
       const timer = setTimeout(() => {
         setShowCelebration(false);
@@ -958,8 +896,11 @@ export default function Home() {
       return () => {
         clearTimeout(timer);
       };
-    }, []);
-    
+    }
+  }, [showCelebration]); // 添加showCelebration作为依赖项
+
+  // 显示庆祝动画
+  if (showCelebration) {
     return (
       <div style={{
         height: '100vh',
@@ -1040,6 +981,69 @@ export default function Home() {
     );
   }
 
+  // 如果在服务器端或者尚未完成水合，显示最小的初始加载UI
+  if (!isClient) {
+    return (
+      <div style={{
+        height: '100vh',
+        width: '100vw',
+        backgroundColor: '#f5f5f7',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+      }}>
+        <div style={{
+          fontSize: '18px',
+          color: '#1d1d1f',
+          textAlign: 'center'
+        }}>
+          加载中...
+        </div>
+      </div>
+    );
+  }
+  
+  // 显示加载中状态
+  if (isLoading) {
+    return (
+      <div style={{
+        height: '100vh',
+        width: '100vw',
+        backgroundColor: getCurrentBackgroundColor(),
+        color: isDark ? '#f5f5f7' : '#1d1d1f',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: getCurrentFont(),
+        flexDirection: 'column',
+        transition: 'background-color 0.3s ease, color 0.3s ease, font-family 0.3s ease'
+      }}>
+        <div style={{
+          fontSize: '22px',
+          fontWeight: '600',
+          marginBottom: '16px'
+        }}>
+          加载中...
+        </div>
+        <div style={{
+          width: '60px',
+          height: '60px',
+          border: `4px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
+          borderRadius: '50%',
+          borderTopColor: isDark ? '#0a84ff' : '#06c',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <style jsx global>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+  
   // 苹果风格样式 - 添加移动端响应式样式
   const styles = {
     container: {
