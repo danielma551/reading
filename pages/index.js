@@ -22,6 +22,10 @@ export default function Home() {
   const cardSize = 25; // 每组卡片的数量
   // 新增：加载状态
   const [isLoading, setIsLoading] = useState(false);
+  // 新增：庆祝动画状态
+  const [showCelebration, setShowCelebration] = useState(false);
+  // 新增：已完成的句子数
+  const [completedSentences, setCompletedSentences] = useState(0);
 
   // 初始化客户端检测
   useEffect(() => {
@@ -380,6 +384,17 @@ export default function Home() {
   const isGoalReached = () => {
     return calculateSessionProgress() >= readingGoal;
   };
+  
+  // 检查阅读目标是否刚刚达成（用于触发庆祝动画）
+  const justReachedGoal = (prevIndex, newIndex) => {
+    if (!isReading) return false;
+    
+    const prevSentencesRead = prevIndex - sessionStartIndex + 1;
+    const newSentencesRead = newIndex - sessionStartIndex + 1;
+    
+    // 之前未达到目标，但现在达到了
+    return (prevSentencesRead < readingGoal && newSentencesRead >= readingGoal);
+  };
 
   // 计算当前会话进度百分比
   const calculateSessionProgressPercentage = () => {
@@ -684,6 +699,8 @@ export default function Home() {
       }
       // 设置当前会话起点
       setSessionStartIndex(currentIndex);
+      // 重置庆祝状态
+      setShowCelebration(false);
     }
     setIsReading(!isReading);
   };
@@ -693,7 +710,24 @@ export default function Home() {
   };
 
   const handleNext = () => {
-    setCurrentIndex(prev => Math.min(formattedText.length - 1, prev + 1));
+    const prevIndex = currentIndex;
+    const newIndex = Math.min(formattedText.length - 1, prevIndex + 1);
+    
+    // 如果下一个操作会刚好达成阅读目标
+    if (justReachedGoal(prevIndex, newIndex)) {
+      // 设置已完成的句子数
+      setCompletedSentences(readingGoal);
+      // 显示庆祝动画
+      setShowCelebration(true);
+      
+      // 更新索引
+      setCurrentIndex(newIndex);
+      
+      // 但不立即自动返回首页，让动画完成后再返回
+    } else {
+      // 正常更新索引
+      setCurrentIndex(newIndex);
+    }
   };
 
   const toggleDarkMode = () => {
@@ -904,6 +938,104 @@ export default function Home() {
             100% { transform: rotate(360deg); }
           }
         `}</style>
+      </div>
+    );
+  }
+  
+  // 显示庆祝动画
+  if (showCelebration) {
+    // 动画播放完毕后返回主页
+    const animationDuration = 5000; // 假设GIF动画持续5秒钟，可以根据实际情况调整
+    
+    useEffect(() => {
+      // 设置一个定时器，在动画结束后自动返回主页面
+      const timer = setTimeout(() => {
+        setShowCelebration(false);
+        setIsReading(false); // 退出阅读模式
+      }, animationDuration);
+      
+      // 清理函数
+      return () => {
+        clearTimeout(timer);
+      };
+    }, []);
+    
+    return (
+      <div style={{
+        height: '100vh',
+        width: '100vw',
+        backgroundColor: getCurrentBackgroundColor(),
+        color: isDark ? '#f5f5f7' : '#1d1d1f',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: getCurrentFont(),
+        flexDirection: 'column',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        zIndex: 9999
+      }}>
+        <div style={{
+          textAlign: 'center',
+          maxWidth: '90%'
+        }}>
+          <img 
+            src="/images/Notification.gif" 
+            alt="庆祝动画" 
+            style={{
+              maxWidth: '100%',
+              maxHeight: '50vh',
+              marginBottom: '20px'
+            }}
+          />
+          
+          <div style={{
+            fontSize: '28px',
+            fontWeight: '700',
+            marginBottom: '8px',
+            color: isDark ? '#f5f5f7' : '#1d1d1f'
+          }}>
+            恭喜你！
+          </div>
+          
+          <div style={{
+            fontSize: '20px',
+            fontWeight: '500',
+            marginBottom: '24px',
+            color: isDark ? '#f5f5f7' : '#1d1d1f'
+          }}>
+            已完成今日阅读目标 {completedSentences} 句
+          </div>
+          
+          <div style={{
+            fontSize: '14px',
+            color: isDark ? '#86868b' : '#8e8e93'
+          }}>
+            动画播放结束后将自动返回主页
+          </div>
+          
+          {/* 跳过按钮 */}
+          <button
+            onClick={() => {
+              setShowCelebration(false);
+              setIsReading(false);
+            }}
+            style={{
+              marginTop: '20px',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: isDark ? 'rgba(60, 60, 60, 0.6)' : 'rgba(240, 240, 240, 0.6)',
+              color: isDark ? '#f5f5f7' : '#1d1d1f',
+              fontSize: '14px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            点击跳过
+          </button>
+        </div>
       </div>
     );
   }
