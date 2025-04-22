@@ -867,14 +867,14 @@ export default function Home() {
   useEffect(() => {
     // 只有当showCelebration为true时才执行
     if (showCelebration) {
-      // 动画播放完毕后返回主页
-      const animationDuration = 5000; // 假设GIF动画持续5秒钟，可以根据实际情况调整
+      // 庆祝画面显示时间
+      const celebrationDuration = 3000; // 修改为3秒钟，让用户更快地返回主页
       
-      // 设置一个定时器，在动画结束后自动返回主页面
+      // 设置一个定时器，在显示结束后自动返回主页面
       const timer = setTimeout(() => {
         setShowCelebration(false);
         setIsReading(false); // 退出阅读模式
-      }, animationDuration);
+      }, celebrationDuration);
       
       // 清理函数
       return () => {
@@ -889,6 +889,7 @@ export default function Home() {
     const fontFamily = getCurrentFont();
     const textColor = isDark ? '#f5f5f7' : '#1d1d1f';
     const buttonBgColor = isDark ? 'rgba(60, 60, 60, 0.6)' : 'rgba(240, 240, 240, 0.6)';
+    const highlightColor = isDark ? '#0a84ff' : '#007aff';
     
     return (
       <div style={{
@@ -908,23 +909,24 @@ export default function Home() {
       }}>
         <div style={{
           textAlign: 'center',
-          maxWidth: '90%'
+          maxWidth: '90%',
+          backgroundColor: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(250, 250, 250, 0.8)',
+          padding: '40px 30px',
+          borderRadius: '20px',
+          boxShadow: isDark ? '0 10px 25px rgba(0, 0, 0, 0.3)' : '0 10px 25px rgba(0, 0, 0, 0.1)'
         }}>
-          <img 
-            src="/images/Notification.gif" 
-            alt="庆祝动画" 
-            style={{
-              maxWidth: '100%',
-              maxHeight: '50vh',
-              marginBottom: '20px'
-            }}
-          />
+          <div style={{
+            fontSize: '40px',
+            marginBottom: '20px',
+          }}>
+            🎉
+          </div>
           
           <div style={{
-            fontSize: '28px',
+            fontSize: '32px',
             fontWeight: '700',
-            marginBottom: '8px',
-            color: textColor
+            marginBottom: '16px',
+            color: highlightColor
           }}>
             恭喜你！
           </div>
@@ -935,17 +937,47 @@ export default function Home() {
             marginBottom: '24px',
             color: textColor
           }}>
-            已完成今日阅读目标 {completedSentences} 句
+            已完成今日阅读目标 <span style={{color: highlightColor, fontWeight: '700'}}>{completedSentences}</span> 句
+          </div>
+          
+          <div style={{
+            width: '80%',
+            margin: '0 auto 20px auto',
+            height: '8px',
+            backgroundColor: isDark ? 'rgba(60, 60, 60, 0.6)' : 'rgba(220, 220, 220, 0.6)',
+            borderRadius: '4px',
+            overflow: 'hidden',
+            position: 'relative'
+          }}>
+            <div style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              height: '100%',
+              width: '100%',
+              backgroundColor: highlightColor,
+              borderRadius: '4px'
+            }}/>
+          </div>
+          
+          <div style={{
+            fontSize: '16px',
+            fontWeight: '600',
+            marginBottom: '20px',
+            color: highlightColor
+          }}>
+            目标达成率: 100%
           </div>
           
           <div style={{
             fontSize: '14px',
-            color: isDark ? '#86868b' : '#8e8e93'
+            color: isDark ? '#86868b' : '#8e8e93',
+            marginBottom: '20px'
           }}>
-            动画播放结束后将自动返回主页
+            坚持阅读，每天进步！
           </div>
           
-          {/* 跳过按钮 */}
+          {/* 返回主页按钮 */}
           <button
             onClick={() => {
               setShowCelebration(false);
@@ -953,17 +985,18 @@ export default function Home() {
             }}
             style={{
               marginTop: '20px',
-              padding: '8px 16px',
-              borderRadius: '8px',
+              padding: '12px 24px',
+              borderRadius: '12px',
               border: 'none',
-              backgroundColor: buttonBgColor,
-              color: textColor,
-              fontSize: '14px',
+              backgroundColor: highlightColor,
+              color: '#ffffff',
+              fontSize: '16px',
+              fontWeight: '600',
               cursor: 'pointer',
               transition: 'all 0.2s ease'
             }}
           >
-            点击跳过
+            返回主页
           </button>
         </div>
       </div>
