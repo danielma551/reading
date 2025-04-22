@@ -20,6 +20,8 @@ export default function Home() {
   // 新增：自定义字体状态
   const [customFonts, setCustomFonts] = useState([]);
   const cardSize = 25; // 每组卡片的数量
+  // 新增：加载状态
+  const [isLoading, setIsLoading] = useState(false);
 
   // 初始化客户端检测
   useEffect(() => {
@@ -424,15 +426,29 @@ export default function Home() {
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (file) {
+      // 设置加载状态
+      setIsLoading(true);
+      
       const reader = new FileReader();
       reader.onload = (e) => {
         const content = e.target.result;
         setText(content);
-        formatText(content);
         
-        // 保存上传的文本
-        saveText(file.name, content);
+        // 使用setTimeout避免UI阻塞
+        setTimeout(() => {
+          // 保存上传的文本
+          saveText(file.name, content);
+          
+          // formatText会在内部管理加载状态
+          formatText(content);
+        }, 50);
       };
+      
+      reader.onerror = () => {
+        setIsLoading(false);
+        alert('读取文件失败，请重试。');
+      };
+      
       reader.readAsText(file);
     }
   };
@@ -454,62 +470,148 @@ export default function Home() {
   const formatText = (inputText) => {
     if (!isClient || !inputText) return; // 服务器端渲染时不执行
     
-    const sentences = inputText
-      .split(/([，。？；])/g)
-      .reduce((acc, curr, i, arr) => {
-        if (i % 2 === 0) {
-          const nextItem = arr[i + 1];
-          return acc.concat(curr + (nextItem || ''));
-        }
-        return acc;
-      }, [])
-      .filter(s => s.trim());
+    // 设置加载状态
+    setIsLoading(true);
     
-    setFormattedText(sentences);
+    // 检查文本是否超大（可以调整这个阈值）
+    const isHugeText = inputText.length > 500000; // 约50万字符视为超大文本
+    
+    if (isHugeText) {
+      // 对于超大文本，使用批处理
+      console.log(`处理超大文本，长度：${inputText.length}字符`);
+      
+      // 步骤1：将文本分成较小的块
+      const chunkSize = 100000; // 每10万字符一个块
+      const chunks = [];
+      for (let i = 0; i < inputText.length; i += chunkSize) {
+        chunks.push(inputText.slice(i, i + chunkSize));
+      }
+      
+      // 步骤2：逐块处理
+      let resultSentences = [];
+      let processedChunks = 0;
+      
+      function processNextChunk() {
+        if (processedChunks >= chunks.length) {
+          // 所有块处理完毕
+          setFormattedText(resultSentences);
+          setIsLoading(false);
+          return;
+        }
+        
+        setTimeout(() => {
+          const chunk = chunks[processedChunks];
+          
+          // 处理当前块
+          const chunkSentences = chunk
+            .split(/([，。？；])/g)
+            .reduce((acc, curr, i, arr) => {
+              if (i % 2 === 0) {
+                const nextItem = arr[i + 1];
+                return acc.concat(curr + (nextItem || ''));
+              }
+              return acc;
+            }, [])
+            .filter(s => s.trim());
+          
+          // 合并结果
+          resultSentences = resultSentences.concat(chunkSentences);
+          
+          // 更新进度
+          const progress = Math.round(((processedChunks + 1) / chunks.length) * 100);
+          console.log(`文本处理进度：${progress}%`);
+          
+          // 处理下一块
+          processedChunks++;
+          processNextChunk();
+        }, 0); // 使用零延迟也可以让UI有机会更新
+      }
+      
+      // 开始处理
+      processNextChunk();
+    } else {
+      // 对于普通大小的文本，使用setTimeout避免UI阻塞
+      setTimeout(() => {
+        try {
+          const sentences = inputText
+            .split(/([，。？；])/g)
+            .reduce((acc, curr, i, arr) => {
+              if (i % 2 === 0) {
+                const nextItem = arr[i + 1];
+                return acc.concat(curr + (nextItem || ''));
+              }
+              return acc;
+            }, [])
+            .filter(s => s.trim());
+          
+          setFormattedText(sentences);
+        } catch (error) {
+          console.error('文本格式化失败:', error);
+        } finally {
+          // 完成后关闭加载状态
+          setIsLoading(false);
+        }
+      }, 10);
+    }
   };
 
   const saveText = (name, content) => {
-    const newSavedTexts = [...savedTexts];
-    
-    // 检查是否已存在相同名称的文本
-    const existingIndex = newSavedTexts.findIndex(item => item.name === name);
-    
-    if (existingIndex >= 0) {
-      // 更新现有文本
-      newSavedTexts[existingIndex] = { name, content, date: new Date().toISOString() };
-      setSelectedSavedText(existingIndex);
-    } else {
-      // 添加新文本
-      newSavedTexts.push({ name, content, date: new Date().toISOString() });
-      setSelectedSavedText(newSavedTexts.length - 1);
-    }
-    
-    setSavedTexts(newSavedTexts);
-    
-    // 保存到本地存储
     try {
+      const newSavedTexts = [...savedTexts];
+      
+      // 检查是否已存在相同名称的文本
+      const existingIndex = newSavedTexts.findIndex(item => item.name === name);
+      
+      if (existingIndex >= 0) {
+        // 更新现有文本
+        newSavedTexts[existingIndex] = { name, content, date: new Date().toISOString() };
+        setSelectedSavedText(existingIndex);
+      } else {
+        // 添加新文本
+        newSavedTexts.push({ name, content, date: new Date().toISOString() });
+        setSelectedSavedText(newSavedTexts.length - 1);
+      }
+      
+      setSavedTexts(newSavedTexts);
+      
+      // 保存到本地存储
       localStorage.setItem('savedTexts', JSON.stringify(newSavedTexts));
       localStorage.setItem('lastReadTextIndex', selectedSavedText !== null ? selectedSavedText.toString() : '0');
+      
+      return true;
     } catch (error) {
       console.error('保存文本失败:', error);
+      // 如果保存失败，确保关闭加载状态
+      setIsLoading(false);
+      return false;
     }
   };
 
   const loadSavedText = (index) => {
+    if (selectedSavedText === index) return; // 避免重复加载同一文本
+    
     if (savedTexts[index]) {
+      // 设置加载状态
+      setIsLoading(true);
+      
+      // 首先更新UI以指示正在加载
       setSelectedSavedText(index);
-      setText(savedTexts[index].content);
-      formatText(savedTexts[index].content);
       
-      // 恢复上次阅读位置
-      if (lastPositions[index] !== undefined) {
-        setCurrentIndex(lastPositions[index]);
-      } else {
-        setCurrentIndex(0);
-      }
-      
-      // 记录当前选择的文本
-      localStorage.setItem('lastReadTextIndex', index.toString());
+      // 延迟处理文本，让UI有机会更新
+      setTimeout(() => {
+        setText(savedTexts[index].content);
+        formatText(savedTexts[index].content);
+        
+        // 恢复上次阅读位置
+        if (lastPositions[index] !== undefined) {
+          setCurrentIndex(lastPositions[index]);
+        } else {
+          setCurrentIndex(0);
+        }
+        
+        // 记录当前选择的文本
+        localStorage.setItem('lastReadTextIndex', index.toString());
+      }, 50);
     }
   };
 
@@ -746,6 +848,46 @@ export default function Home() {
         }}>
           加载中...
         </div>
+      </div>
+    );
+  }
+  
+  // 显示加载中状态
+  if (isLoading) {
+    return (
+      <div style={{
+        height: '100vh',
+        width: '100vw',
+        backgroundColor: getCurrentBackgroundColor(),
+        color: isDark ? '#f5f5f7' : '#1d1d1f',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: getCurrentFont(),
+        flexDirection: 'column',
+        transition: 'background-color 0.3s ease, color 0.3s ease, font-family 0.3s ease'
+      }}>
+        <div style={{
+          fontSize: '22px',
+          fontWeight: '600',
+          marginBottom: '16px'
+        }}>
+          加载中...
+        </div>
+        <div style={{
+          width: '60px',
+          height: '60px',
+          border: `4px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)'}`,
+          borderRadius: '50%',
+          borderTopColor: isDark ? '#0a84ff' : '#06c',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <style jsx global>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }
