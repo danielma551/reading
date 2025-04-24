@@ -2159,27 +2159,54 @@ export default function Home() {
                 阅读进度: {calculateSessionProgress()}/{readingGoal}句 ({Math.round(calculateOverallPercentage())}%)
               </div>
               
-              {/* 添加保存句子按钮 */}
-              <button
-                onClick={saveCurrentSentence}
-                style={{
-                  border: 'none',
-                  backgroundColor: isDark ? '#0a84ff' : '#007aff',
-                  color: '#ffffff',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                <span style={{ fontSize: '14px' }}>📝</span> 
-                保存句子
-              </button>
+              <div style={{
+                display: 'flex',
+                gap: '8px'
+              }}>
+                {/* 添加保存句子按钮 */}
+                <button
+                  onClick={saveCurrentSentence}
+                  style={{
+                    border: 'none',
+                    backgroundColor: isDark ? '#0a84ff' : '#007aff',
+                    color: '#ffffff',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <span style={{ fontSize: '14px' }}>📝</span> 
+                  保存句子
+                </button>
+                
+                {/* 添加查看笔记按钮 */}
+                <button
+                  onClick={() => setShowNotebook(true)}
+                  style={{
+                    border: 'none',
+                    backgroundColor: isDark ? '#30d158' : '#34c759',
+                    color: '#ffffff',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <span style={{ fontSize: '14px' }}>📘</span> 
+                  查看笔记
+                </button>
+              </div>
             </div>
             
             {/* 分隔线 */}
