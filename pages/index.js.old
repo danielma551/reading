@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
 
 export default function Home() {
   // 添加客户端渲染检测状态
@@ -26,6 +27,13 @@ export default function Home() {
   const [showCelebration, setShowCelebration] = useState(false);
   // 新增：已完成的句子数
   const [completedSentences, setCompletedSentences] = useState(0);
+  // 新增：收藏的句子列表
+  const [savedSentences, setSavedSentences] = useState([]);
+  // 新增：笔记本显示状态
+  const [showNotebook, setShowNotebook] = useState(false);
+  // 新增：笔记本排序和筛选状态
+  const [notebookSortOption, setNotebookSortOption] = useState('date-desc');
+  const [notebookFilterText, setNotebookFilterText] = useState('');
 
   // 初始化客户端检测
   useEffect(() => {
@@ -39,17 +47,26 @@ export default function Home() {
 
     // 设置字体大小，根据屏幕宽度自动调整
     function updateFontSize() {
-      const width = window.innerWidth;
-      if (width < 480) {
-        // 针对较小的手机屏幕
-        setFontSize(24);
-      } else if (width < 768) {
-        // 针对大一点的手机屏幕
-        setFontSize(32);
-      } else if (width < 1024) {
-        setFontSize(48);
+      // 检查是否有保存的字体大小设置
+      const savedFontSize = localStorage.getItem('fontSize');
+      
+      if (savedFontSize) {
+        // 如果有保存的字体大小，使用保存的设置
+        setFontSize(parseInt(savedFontSize));
       } else {
-        setFontSize(60);
+        // 否则根据屏幕宽度自动调整
+        const width = window.innerWidth;
+        if (width < 480) {
+          // 针对较小的手机屏幕
+          setFontSize(24);
+        } else if (width < 768) {
+          // 针对大一点的手机屏幕
+          setFontSize(32);
+        } else if (width < 1024) {
+          setFontSize(48);
+        } else {
+          setFontSize(60);
+        }
       }
     }
     
@@ -65,6 +82,8 @@ export default function Home() {
       const savedFont = localStorage.getItem('selectedFont');
       // 新增：加载自定义字体
       const savedCustomFonts = localStorage.getItem('customFonts');
+      // 新增：加载收藏的句子
+      const savedSentencesData = localStorage.getItem('savedSentences');
       
       if (savedData) {
         const parsedData = JSON.parse(savedData);
@@ -86,6 +105,12 @@ export default function Home() {
       
       if (savedFont) {
         setSelectedFont(savedFont);
+      }
+      
+      // 新增：加载收藏的句子
+      if (savedSentencesData) {
+        const parsedSentences = JSON.parse(savedSentencesData);
+        setSavedSentences(parsedSentences);
       }
       
       // 新增：加载并应用自定义字体
@@ -433,8 +458,96 @@ export default function Home() {
     return ((currentIndex + 1) / Math.min(formattedText.length, readingGoal)) * 100;
   };
 
+  // 开始新的阅读会话
   const startNewSession = () => {
     setSessionStartIndex(currentIndex);
+  };
+
+  // 保存当前句子到笔记本
+  const saveCurrentSentence = () => {
+    if (!isClient || !formattedText || formattedText.length === 0 || currentIndex < 0 || currentIndex >= formattedText.length) {
+      return;
+    }
+    
+    // 获取当前句子
+    const sentence = formattedText[currentIndex];
+    
+    // 获取当前文本的名称
+    const source = savedTexts.length > 0 && selectedSavedText !== null 
+      ? savedTexts[selectedSavedText].name 
+      : '未知来源';
+    
+    // 使用工具函数保存句子
+    const result = saveSentence(sentence, source, currentIndex);
+    
+    if (result.success) {
+      // 更新状态
+      setSavedSentences(getSavedSentences());
+      
+      // 使用通用通知函数
+      showNotification(result.message, true);
+    } else {
+      // 使用通用通知函数
+      showNotification('保存句子失败，请重试', false);
+    }
+  };
+  
+  // 删除收藏的句子
+  const deleteSavedSentence = (id) => {
+    if (!isClient) return;
+    
+    // 确认删除
+    if (window.confirm('确定要删除这个收藏的句子吗？')) {
+      // 使用工具函数删除句子
+      const result = deleteSentence(id);
+      
+      if (result.success) {
+        // 更新状态
+        setSavedSentences(getSavedSentences());
+        
+        // 使用通用通知函数
+        showNotification('已成功删除句子', true);
+      } else {
+        // 使用通用通知函数
+        showNotification('删除句子失败，请重试', false);
+      }
+    }
+  };
+  
+  // 跳转到收藏句子的原始位置
+  const jumpToSavedSentence = (position, source) => {
+    if (!isClient) return;
+    
+    // 查找句子所在的文本索引
+    let textIndex = null;
+    
+    if (source !== '未知来源') {
+      // 查找对应文本的索引
+      textIndex = savedTexts.findIndex(text => text.name === source);
+    }
+    
+    // 如果找到了对应的文本
+    if (textIndex !== null && textIndex !== -1) {
+      // 加载该文本
+      loadSavedText(textIndex);
+      
+      // 设置当前位置
+      setCurrentIndex(position);
+      
+      // 关闭笔记本
+      setShowNotebook(false);
+      
+      // 如果不在阅读模式，切换到阅读模式
+      if (!isReading) {
+        toggleReadingMode();
+      }
+      
+      // 显示通知
+      showNotification('已跳转到原句位置', true);
+    } else {
+      // 显示错误通知
+      showNotification('无法找到原始文本，可能已被删除', false);
+    }
   };
 
   const handleFileUpload = (event) => {
@@ -719,6 +832,78 @@ export default function Home() {
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
+  };
+
+  // 显示通知的通用辅助函数
+  const showNotification = (message, isSuccess = true) => {
+    if (!isClient) return;
+    
+    const notification = document.createElement('div');
+    notification.style.position = 'fixed';
+    notification.style.bottom = '20px';
+    notification.style.left = '50%';
+    notification.style.transform = 'translateX(-50%)';
+    notification.style.backgroundColor = isDark ? 'rgba(44, 44, 46, 0.9)' : 'rgba(240, 240, 240, 0.9)';
+    notification.style.color = isDark ? '#ffffff' : '#000000';
+    notification.style.padding = '10px 20px';
+    notification.style.borderRadius = '8px';
+    notification.style.boxShadow = isDark ? '0 4px 12px rgba(0, 0, 0, 0.4)' : '0 4px 12px rgba(0, 0, 0, 0.1)';
+    notification.style.zIndex = '10000';
+    notification.style.fontSize = '14px';
+    notification.style.display = 'flex';
+    notification.style.alignItems = 'center';
+    notification.style.gap = '8px';
+    notification.style.backdropFilter = 'blur(10px)';
+    notification.style.WebkitBackdropFilter = 'blur(10px)';
+    
+    // 添加图标和文本
+    const icon = isSuccess ? '✅' : '❌';
+    notification.innerHTML = `<span style="font-size: 18px;">${icon}</span> ${message}`;
+    
+    // 添加到文档
+    document.body.appendChild(notification);
+    
+    // 3秒后移除
+    setTimeout(() => {
+      notification.style.opacity = '0';
+      notification.style.transition = 'opacity 0.5s ease';
+      setTimeout(() => {
+        if (document.body.contains(notification)) {
+          document.body.removeChild(notification);
+        }
+      }, 500);
+    }, 3000);
+  };
+
+  // 复制文本到剪贴板的辅助函数
+  const copyToClipboard = (text) => {
+    if (!isClient) return;
+    
+    // 创建临时文本区域
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    // 让文本区域不可见
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+      // 执行复制操作
+      const successful = document.execCommand('copy');
+      if (successful) {
+        showNotification('已复制到剪贴板', true);
+      } else {
+        showNotification('复制失败，请手动复制', false);
+      }
+    } catch (err) {
+      showNotification('复制操作不支持', false);
+    }
+    
+    // 清理
+    document.body.removeChild(textArea);
   };
 
   // 添加双击切换设置面板功能
@@ -1094,6 +1279,19 @@ export default function Home() {
       zIndex: 10,
       boxShadow: isDark ? '0 1px 0 rgba(255, 255, 255, 0.05)' : '0 1px 0 rgba(0, 0, 0, 0.05)',
       transition: 'background-color 0.3s ease'
+    },
+    headerLeft: {
+      display: 'flex',
+      alignItems: 'center'
+    },
+    headerRight: {
+      display: 'flex',
+      alignItems: 'center'
+    },
+    appTitle: {
+      fontSize: '17px',
+      fontWeight: '600',
+      color: isDark ? '#f5f5f7' : '#1d1d1f'
     },
     headerButton: {
       border: 'none',
@@ -1598,23 +1796,64 @@ export default function Home() {
       <div style={styles.container}>
         {/* 顶部导航栏 */}
         <div style={styles.header}>
-          <button 
-            onClick={toggleReadingMode}
-            style={styles.headerButton}
-          >
-            完成
-          </button>
-          <div style={styles.headerTitle}>
-            {selectedSavedText !== null && savedTexts[selectedSavedText]
-              ? savedTexts[selectedSavedText].name 
-              : '阅读中'}
+          <div style={styles.headerLeft}>
+            {isReading ? (
+              <button 
+                onClick={() => setIsReading(false)}
+                style={styles.iconButton}
+              >
+                退出
+              </button>
+            ) : (
+              <>
+                <div style={styles.appTitle}>阅读器应用</div>
+              </>
+            )}
           </div>
-          <button 
-            onClick={toggleMenu}
-            style={styles.headerButton}
-          >
-            {isMenuOpen ? '关闭' : '设置'}
-          </button>
+          <div style={styles.headerRight}>
+            {/* 笔记本按钮 */}
+            <button 
+              onClick={() => setShowNotebook(true)}
+              style={{
+                ...styles.iconButton,
+                fontSize: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: '12px'
+              }}
+              title="打开笔记本"
+            >
+              📚
+            </button>
+            <button 
+              onClick={toggleDarkMode}
+              style={{
+                ...styles.iconButton,
+                fontSize: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: '12px'
+              }}
+              title={isDark ? '切换至亮色模式' : '切换至暗色模式'}
+            >
+              {isDark ? '🌞' : '🌙'}
+            </button>
+            <button 
+              onClick={toggleMenu}
+              style={{
+                ...styles.iconButton,
+                fontSize: '20px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+              title="打开菜单"
+            >
+              ⚙️
+            </button>
+          </div>
         </div>
 
         {/* 阅读设置菜单 */}
@@ -2056,7 +2295,27 @@ export default function Home() {
                 阅读进度: {calculateSessionProgress()}/{readingGoal}句 ({Math.round(calculateOverallPercentage())}%)
               </div>
               
-              {/* 删除保存句子按钮 */}
+              {/* 添加保存句子按钮 */}
+              <button
+                onClick={saveCurrentSentence}
+                style={{
+                  border: 'none',
+                  backgroundColor: isDark ? '#0a84ff' : '#007aff',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <span style={{ fontSize: '14px' }}>📝</span> 
+                保存句子
+              </button>
             </div>
             
             {/* 分隔线 */}
@@ -2364,271 +2623,779 @@ export default function Home() {
           }}
         />
       </div>
-    );
-  }
+    </div>
+  );
+}
 
-  // 苹果风格的库页面 - 针对移动设备优化
+// 渲染笔记本组件
+const renderNotebook = () => {
+  // 如果没有收藏的句子，显示空状态
+  const isEmpty = savedSentences.length === 0;
+  
+  // 检测是否为移动设备
+  const isMobile = isClient && window.innerWidth < 768;
+  
+  // 对保存的句子进行排序和筛选
+  const sortedAndFilteredSentences = useMemo(() => {
+    // 先筛选
+    let filtered = savedSentences;
+    if (notebookFilterText.trim()) {
+      filtered = savedSentences.filter(sentence => 
+        sentence.text.toLowerCase().includes(notebookFilterText.toLowerCase()) ||
+        sentence.source.toLowerCase().includes(notebookFilterText.toLowerCase())
+      );
+    }
+    
+    // 再排序
+    return [...filtered].sort((a, b) => {
+      switch(notebookSortOption) {
+        case 'date-asc':
+          return new Date(a.date) - new Date(b.date);
+        case 'date-desc':
+          return new Date(b.date) - new Date(a.date);
+        case 'source':
+          return a.source.localeCompare(b.source);
+        case 'position':
+          return a.position - b.position;
+        default:
+          return new Date(b.date) - new Date(a.date);
+      }
+    });
+  }, [savedSentences, notebookSortOption, notebookFilterText]);
+  
   return (
-    <div style={styles.libraryContainer}>
-      <div style={styles.libraryHeader}>
-        <div style={styles.libraryTitle}>阅读器</div>
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      backgroundColor: getCurrentBackgroundColor(),
+      zIndex: 9999,
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      {/* 笔记本导航栏 */}
+      <div style={{
+        height: isMobile ? '50px' : '44px',
+        backgroundColor: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(245, 245, 247, 0.8)',
+        backdropFilter: 'blur(10px)',
+        WebkitBackdropFilter: 'blur(10px)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: isMobile ? '0 12px' : '0 16px',
+        boxShadow: isDark ? '0 1px 0 rgba(255, 255, 255, 0.05)' : '0 1px 0 rgba(0, 0, 0, 0.05)'
+      }}>
+        <button
+          onClick={() => setShowNotebook(false)}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: isDark ? '#0a84ff' : '#007aff',
+            fontSize: isMobile ? '15px' : '16px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            padding: '0'
+          }}
+        >
+          关闭
+        </button>
+        <div style={{
+          fontSize: isMobile ? '16px' : '17px',
+          fontWeight: '600',
+          color: isDark ? '#f5f5f7' : '#1d1d1f'
+        }}>
+          我的笔记本
+        </div>
+        <div style={{ width: '50px' }}></div> {/* 占位元素，保持导航栏平衡 */}
       </div>
       
-      <div style={{
-        ...styles.libraryContent,
-        padding: '16px', // 移动端padding更小
-      }}>
-        <div style={styles.card}>
+      {!isEmpty && (
+        <div style={{
+          padding: isMobile ? '8px 12px' : '12px 16px',
+          backgroundColor: isDark ? 'rgba(30, 30, 30, 0.5)' : 'rgba(245, 245, 247, 0.5)',
+          display: 'flex',
+          flexDirection: isMobile ? 'column' : 'column',
+          gap: isMobile ? '6px' : '8px',
+          boxShadow: isDark ? '0 1px 0 rgba(255, 255, 255, 0.05)' : '0 1px 0 rgba(0, 0, 0, 0.05)'
+        }}>
+          {/* 搜索框 */}
+          <input
+            type="text"
+            placeholder="搜索笔记..."
+            value={notebookFilterText}
+            onChange={(e) => setNotebookFilterText(e.target.value)}
+            style={{
+              width: '100%',
+              padding: isMobile ? '6px 10px' : '8px 12px',
+              borderRadius: '8px',
+              border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+              backgroundColor: isDark ? 'rgba(50, 50, 50, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+              color: isDark ? '#f5f5f7' : '#1d1d1f',
+              fontSize: isMobile ? '13px' : '14px',
+              outline: 'none'
+            }}
+          />
+          
+          {/* 排序选项 */}
           <div style={{
             display: 'flex',
-            justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '20px'
+            gap: '8px',
+            marginTop: isMobile ? '2px' : '4px'
           }}>
-            <div style={styles.cardTitle}>文库</div>
-            <div style={{display: 'flex', gap: '8px'}}>
-              <button 
-                onClick={toggleDarkMode}
-                style={styles.modeButton}
-              >
-                {isDark ? '浅色' : '深色'}
-              </button>
+            <div style={{
+              fontSize: isMobile ? '12px' : '13px',
+              color: isDark ? '#98989d' : '#8e8e93',
+              minWidth: '40px'
+            }}>
+              排序:
+            </div>
+            <select
+              value={notebookSortOption}
+              onChange={(e) => setNotebookSortOption(e.target.value)}
+              style={{
+                backgroundColor: isDark ? 'rgba(50, 50, 50, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+                color: isDark ? '#f5f5f7' : '#1d1d1f',
+                border: `1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}`,
+                borderRadius: '6px',
+                padding: isMobile ? '3px 6px' : '4px 8px',
+                fontSize: isMobile ? '12px' : '13px',
+                flexGrow: 1
+              }}
+            >
+              <option value="date-desc">最新日期优先</option>
+              <option value="date-asc">最早日期优先</option>
+              <option value="source">按来源排序</option>
+              <option value="position">按原文位置排序</option>
+            </select>
+          </div>
+        </div>
+      )}
+      
+      {/* 笔记本内容 */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        padding: isMobile ? '12px' : '16px'
+      }}>
+        {isEmpty ? (
+          // 空状态
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '80%',
+            textAlign: 'center',
+            color: isDark ? '#8e8e93' : '#8e8e93'
+          }}>
+            <div style={{
+              fontSize: '50px',
+              marginBottom: '20px'
+            }}>
+              📝
+            </div>
+            <div style={{
+              fontSize: '20px',
+              fontWeight: '600',
+              marginBottom: '10px',
+              color: isDark ? '#f5f5f7' : '#1d1d1f'
+            }}>
+              暂无收藏句子
+            </div>
+            <div style={{
+              fontSize: '15px',
+              maxWidth: '300px',
+              lineHeight: '1.4'
+            }}>
+              在阅读时点击"保存句子"按钮，将喜欢的句子添加到笔记本中
             </div>
           </div>
-
-          {/* 字体选择器 - 添加字体导入功能 */}
-          <div style={styles.fontOptionContainer}>
-            <div style={styles.fontOptionLabel}>字体选择</div>
-            <select 
-              value={selectedFont}
-              onChange={(e) => selectFont(e.target.value)}
-              style={styles.fontSelect}
-            >
-              {/* 系统字体组 */}
-              <optgroup label="系统字体">
-                {fontOptions.filter(font => !font.id.startsWith('custom-')).map(font => (
-                  <option key={font.id} value={font.id}>
-                    {font.name}
-                  </option>
-                ))}
-              </optgroup>
-              
-              {/* 自定义字体组 */}
-              {customFonts.length > 0 && (
-                <optgroup label="自定义字体">
-                  {customFonts.map(font => (
-                    <option key={font.id} value={font.id}>
-                      {font.name}
-                    </option>
-                  ))}
-                </optgroup>
-              )}
-            </select>
-            
-            {/* 字体导入按钮 */}
+        ) : notebookFilterText && sortedAndFilteredSentences.length === 0 ? (
+          // 搜索无结果状态
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '60%',
+            textAlign: 'center',
+            color: isDark ? '#8e8e93' : '#8e8e93'
+          }}>
             <div style={{
-              marginTop: '12px',
-              display: 'flex',
-              justifyContent: 'center',
-              gap: '10px'
+              fontSize: '40px',
+              marginBottom: '20px'
             }}>
-              <div style={{
-                position: 'relative',
-                overflow: 'hidden',
-                display: 'inline-block'
-              }}>
-                <button style={{
-                  border: 'none',
-                  background: isDark ? '#2c2c2e' : '#f2f2f7',
-                  padding: '6px 12px',
-                  borderRadius: '12px',
-                  fontSize: '13px',
-                  color: isDark ? '#f5f5f7' : '#1d1d1f',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px'
-                }}>
-                  <span>导入字体</span>
-                </button>
-                <input
-                  type="file"
-                  accept=".ttf,.otf,.woff,.woff2"
-                  onChange={handleFontUpload}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    opacity: 0,
-                    width: '100%',
-                    height: '100%',
-                    cursor: 'pointer'
-                  }}
-                />
-              </div>
+              🔍
+            </div>
+            <div style={{
+              fontSize: '18px',
+              fontWeight: '600',
+              marginBottom: '10px',
+              color: isDark ? '#f5f5f7' : '#1d1d1f'
+            }}>
+              没有找到匹配的结果
+            </div>
+            <div style={{
+              fontSize: '15px',
+              maxWidth: '300px',
+              lineHeight: '1.4'
+            }}>
+              尝试使用不同的关键词搜索
+            </div>
+          </div>
+        ) : (
+          // 句子列表
+          <div>
+            <div style={{
+              fontSize: isMobile ? '12px' : '13px',
+              color: isDark ? '#8e8e93' : '#8e8e93',
+              marginBottom: isMobile ? '6px' : '8px',
+              paddingLeft: isMobile ? '4px' : '8px'
+            }}>
+              找到 {sortedAndFilteredSentences.length} 条结果 {notebookFilterText ? `(搜索: "${notebookFilterText}")` : ''}
+            </div>
+            
+            {sortedAndFilteredSentences.map((sentence, index) => {
+              // 格式化日期
+              const date = new Date(sentence.date);
+              const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
               
-              {/* 管理字体按钮（如果有自定义字体） */}
-              {customFonts.length > 0 && (
-                <button
-                  onClick={() => {
-                    // 创建一个字体管理对话框
-                    const message = customFonts.map((font, index) => 
-                      `${index + 1}. ${font.name}`
-                    ).join('\n');
-                    
-                    const fontIndex = window.prompt(
-                      `输入要删除的字体编号（1-${customFonts.length}）：\n${message}`, 
-                      ""
-                    );
-                    
-                    if (fontIndex && !isNaN(fontIndex)) {
-                      const index = parseInt(fontIndex) - 1;
-                      if (index >= 0 && index < customFonts.length) {
-                        const fontToDelete = customFonts[index];
-                        if (window.confirm(`确定要删除字体 "${fontToDelete.name}" 吗？`)) {
-                          deleteCustomFont(fontToDelete.id);
-                        }
-                      }
-                    }
-                  }}
+              return (
+                <div 
+                  key={sentence.id}
                   style={{
-                    border: 'none',
-                    background: isDark ? '#2c2c2e' : '#f2f2f7',
-                    padding: '6px 12px',
+                    backgroundColor: isDark ? 'rgba(40, 40, 40, 0.5)' : 'rgba(250, 250, 250, 0.5)',
+                    padding: isMobile ? '12px' : '16px',
                     borderRadius: '12px',
-                    fontSize: '13px',
-                    color: isDark ? '#f5f5f7' : '#1d1d1f',
-                    cursor: 'pointer'
+                    marginBottom: isMobile ? '10px' : '12px',
+                    boxShadow: isDark ? '0 2px 6px rgba(0, 0, 0, 0.2)' : '0 2px 6px rgba(0, 0, 0, 0.1)'
                   }}
                 >
-                  管理字体
-                </button>
-              )}
-            </div>
-            
-            <div style={{
-              ...styles.fontPreview,
-              fontFamily: getCurrentFont(),
-            }}>
-              字体预览 - 這是中文示例
-            </div>
+                  <div style={{
+                    fontSize: isMobile ? '15px' : '16px',
+                    lineHeight: '1.5',
+                    marginBottom: isMobile ? '10px' : '12px',
+                    color: isDark ? '#f5f5f7' : '#1d1d1f'
+                  }}>
+                    {sentence.text}
+                  </div>
+                  
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: isMobile ? 'column' : 'row',
+                    justifyContent: 'space-between',
+                    alignItems: isMobile ? 'flex-start' : 'center',
+                    fontSize: isMobile ? '12px' : '13px',
+                    color: isDark ? '#8e8e93' : '#8e8e93',
+                    gap: isMobile ? '8px' : '0'
+                  }}>
+                    <div>
+                      来源: {sentence.source} | {formattedDate}
+                    </div>
+                    
+                    <div style={{
+                      display: 'flex',
+                      gap: '10px'
+                    }}>
+                      <button
+                        onClick={() => copyToClipboard(sentence.text)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: isDark ? '#64d2ff' : '#5ac8fa',
+                          cursor: 'pointer',
+                          padding: '0',
+                          fontSize: isMobile ? '12px' : '13px'
+                        }}
+                      >
+                        复制
+                      </button>
+                      
+                      <button
+                        onClick={() => jumpToSavedSentence(sentence.position, sentence.source)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: isDark ? '#0a84ff' : '#007aff',
+                          cursor: 'pointer',
+                          padding: '0',
+                          fontSize: isMobile ? '12px' : '13px'
+                        }}
+                      >
+                        查看原文
+                      </button>
+                      
+                      <button
+                        onClick={() => deleteSavedSentence(sentence.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ff453a',
+                          cursor: 'pointer',
+                          padding: '0',
+                          fontSize: isMobile ? '12px' : '13px'
+                        }}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
-          {/* 库页面背景颜色选择器 */}
-          <div style={{marginBottom: '24px'}}>
-            <div style={styles.colorPickerLabel}>背景颜色</div>
-            <div style={styles.colorPickerContainer}>
-              {(isDark ? backgroundColors.dark : backgroundColors.light).map((color, index) => (
-                <div
-                  key={index}
-                  title={color.name}
-                  onClick={() => selectBackgroundColor(color.value)}
-                  style={{
-                    ...styles.colorOption,
-                    backgroundColor: color.value,
-                    ...(getCurrentBackgroundColor() === color.value ? styles.colorOptionActive : {})
-                  }}
-                />
-              ))}
-            </div>
+// 设置内容
+const renderSettings = () => {
+  return (
+    <div style={styles.menu}>
+      <div style={styles.menuTitle}>阅读设置</div>
+      
+      <div style={{marginBottom: '20px', textAlign: 'center'}}>
+        <button 
+          onClick={toggleDarkMode} 
+          style={styles.modeButton}
+        >
+          切换到{isDark ? '浅色' : '深色'}模式
+        </button>
+      </div>
+      
+      {/* 阅读目标设置 */}
+      <div style={{marginBottom: '24px'}}>
+        <div style={styles.colorPickerLabel}>阅读目标（句子数）</div>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+          <button 
+            onClick={() => setReadingGoal(prev => Math.max(50, prev - 50))}
+            style={{
+              ...styles.iconButton,
+              fontSize: '16px'
+            }}
+          >
+            -
+          </button>
+          <div style={{
+            fontSize: '17px',
+            fontWeight: '600',
+            color: isDark ? '#f5f5f7' : '#1d1d1f',
+            minWidth: '60px',
+            textAlign: 'center'
+          }}>
+            {readingGoal}
           </div>
+          <button 
+            onClick={() => setReadingGoal(prev => prev + 50)}
+            style={{
+              ...styles.iconButton,
+              fontSize: '16px'
+            }}
+          >
+            +
+          </button>
+        </div>
+      </div>
+
+      {/* 新增：数据同步功能 */}
+      <div style={{
+        backgroundColor: isDark ? 'rgba(60, 60, 60, 0.5)' : 'rgba(240, 240, 240, 0.5)',
+        borderRadius: '12px',
+        padding: '16px',
+        marginBottom: '24px'
+      }}>
+        <div style={{
+          fontSize: '15px',
+          fontWeight: '600',
+          marginBottom: '12px',
+          color: isDark ? '#f5f5f7' : '#1d1d1f',
+          textAlign: 'center'
+        }}>
+          跨设备数据同步
+        </div>
+        
+        <div style={{
+          fontSize: '13px',
+          color: isDark ? '#98989d' : '#8e8e93',
+          marginBottom: '16px',
+          textAlign: 'center'
+        }}>
+          导出您的数据，然后在其他设备上导入，实现数据同步
+        </div>
+        
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px'
+        }}>
+          <button
+            onClick={exportData}
+            style={{
+              ...styles.button,
+              backgroundColor: isDark ? '#2c2c2e' : '#e5e5ea',
+              color: isDark ? '#f5f5f7' : '#1d1d1f',
+              fontWeight: '500',
+              fontSize: '14px',
+              padding: '10px 16px'
+            }}
+          >
+            导出数据备份
+          </button>
           
-          <div style={styles.dropZone}>
-            <div style={styles.dropZoneText}>添加新文件</div>
-            <div style={styles.dropZoneSubtext}>拖放文件到此处，或点击选择</div>
+          <div style={{
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <button
+              style={{
+                ...styles.button,
+                backgroundColor: isDark ? '#2c2c2e' : '#e5e5ea',
+                color: isDark ? '#f5f5f7' : '#1d1d1f',
+                fontWeight: '500',
+                fontSize: '14px',
+                padding: '10px 16px',
+                width: '100%'
+              }}
+            >
+              导入数据备份
+            </button>
             <input
               type="file"
-              accept=".txt"
-              onChange={handleFileUpload}
+              accept=".json"
+              onChange={importData}
               style={{
                 position: 'absolute',
-                inset: 0,
+                top: 0,
+                left: 0,
+                opacity: 0,
                 width: '100%',
                 height: '100%',
+                cursor: 'pointer'
+              }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 当前会话阅读进度 - 简化设计 */}
+      <div style={styles.goalProgressContainer}>
+        <div style={styles.goalProgressTitle}>
+          当前阅读进度
+        </div>
+        <div style={{
+          width: '100%',
+          height: '6px',
+          backgroundColor: 'transparent',
+          borderRadius: '3px',
+          overflow: 'hidden',
+          border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
+          marginBottom: '8px',
+        }}>
+          <div 
+            style={{
+              height: '100%',
+              backgroundColor: isGoalReached() ? 'rgba(48, 209, 88, 0.8)' : (isDark ? 'rgba(10, 132, 255, 0.8)' : 'rgba(0, 102, 204, 0.8)'),
+              borderRadius: '3px',
+              transition: 'width 0.3s ease',
+              width: goalProgressWidth
+            }}
+          />
+        </div>
+        <div style={styles.goalProgressText}>
+          {calculateSessionProgress()} / {readingGoal} 句
+          {isGoalReached() ? ' · 目标达成！' : ''}
+        </div>
+        
+        {isGoalReached() && (
+          <button
+            onClick={startNewSession}
+            style={{
+              ...styles.modeButton,
+              marginTop: '12px',
+              backgroundColor: isDark ? '#2c2c2e' : '#e5e5ea'
+            }}
+          >
+            开始新会话
+          </button>
+        )}
+      </div>
+      
+      {/* 段落进度 - 简化设计 */}
+      <div style={styles.goalProgressContainer}>
+        <div style={styles.goalProgressTitle}>
+          段落进度 (每{cardSize}句)
+        </div>
+        <div style={{
+          width: '100%',
+          height: '6px',
+          backgroundColor: 'transparent',
+          borderRadius: '3px',
+          overflow: 'hidden',
+          border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
+          marginBottom: '8px',
+        }}>
+          <div 
+            style={{
+              height: '100%',
+              backgroundColor: `${getProgressColor(calculateSegmentInRemainingPercentage())}cc`, // 添加透明度
+              width: segmentProgressWidth,
+              borderRadius: '3px',
+              transition: 'width 0.3s ease, background-color 0.3s ease'
+            }}
+          />
+        </div>
+        <div style={styles.goalProgressText}>
+          {getSentencesInCurrentSegment()}/{cardSize} 句 · 
+          第{getCurrentSegmentNumber()}/{getTotalSegments()}段
+        </div>
+        
+        <div style={{
+          fontSize: '12px',
+          color: isDark ? '#86868b' : '#98989d',
+          marginTop: '4px',
+          textAlign: 'center'
+        }}>
+          剩余: {getRemainingSegments()}段 · 
+          当前段落占比: {Math.round(calculateSegmentInRemainingPercentage())}%
+        </div>
+      </div>
+      
+      {/* 字体选择器 - 添加字体导入功能 */}
+      <div style={styles.fontOptionContainer}>
+        <div style={styles.fontOptionLabel}>字体选择</div>
+        <select 
+          value={selectedFont}
+          onChange={(e) => selectFont(e.target.value)}
+          style={styles.fontSelect}
+        >
+          {/* 系统字体组 */}
+          <optgroup label="系统字体">
+            {fontOptions.filter(font => !font.id.startsWith('custom-')).map(font => (
+              <option key={font.id} value={font.id}>
+                {font.name}
+              </option>
+            ))}
+          </optgroup>
+          
+          {/* 自定义字体组 */}
+          {customFonts.length > 0 && (
+            <optgroup label="自定义字体">
+              {customFonts.map(font => (
+                <option key={font.id} value={font.id}>
+                  {font.name}
+                </option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+        
+        {/* 字体导入按钮 */}
+        <div style={{
+          marginTop: '12px',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '10px'
+        }}>
+          <div style={{
+            position: 'relative',
+            overflow: 'hidden',
+            display: 'inline-block'
+          }}>
+            <button style={{
+              border: 'none',
+              background: isDark ? '#2c2c2e' : '#f2f2f7',
+              padding: '6px 12px',
+              borderRadius: '12px',
+              fontSize: '13px',
+              color: isDark ? '#f5f5f7' : '#1d1d1f',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}>
+              <span>导入字体</span>
+            </button>
+            <input
+              type="file"
+              accept=".ttf,.otf,.woff,.woff2"
+              onChange={handleFontUpload}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
                 opacity: 0,
+                width: '100%',
+                height: '100%',
                 cursor: 'pointer'
               }}
             />
           </div>
           
-          {savedTexts.length > 0 && (
-            <div style={styles.listSection}>
-              <div style={styles.listTitle}>
-                <span>我的文档</span>
-                <span style={{fontSize: '13px', color: isDark ? '#8e8e93' : '#8e8e93'}}>
-                  {savedTexts.length}个文件
-                </span>
-              </div>
-              
-              <div style={styles.listContainer}>
-                {savedTexts.map((item, index) => {
-                  const position = lastPositions[index];
-                  const hasPosition = position !== undefined;
-                  const isSelected = selectedSavedText === index;
-                  const date = new Date(item.date);
-                  const formattedDate = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-                  
-                  return (
-                    <div 
-                      key={index}
-                      onClick={() => loadSavedText(index)}
-                      style={{
-                        ...styles.listItem,
-                        ...(isSelected ? styles.listItemActive : {})
-                      }}
-                    >
-                      <div style={{flex: 1}}>
-                        <div style={styles.listItemTitle}>
-                          {item.name}
-                        </div>
-                        <div style={styles.listItemSubtitle}>
-                          {formattedDate}
-                          {hasPosition && formattedText.length > 0 && (
-                            <span style={{marginLeft: '8px'}}>
-                              · 已读{Math.round(((position + 1) / formattedText.length) * 100)}%
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => deleteSavedText(e, index)}
-                        style={styles.iconButton}
-                      >
-                        删除
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          
-          {formattedText.length > 0 && (
+          {/* 管理字体按钮（如果有自定义字体） */}
+          {customFonts.length > 0 && (
             <button
-              onClick={toggleReadingMode}
-              style={styles.button}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = styles.buttonHover.backgroundColor}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = styles.button.backgroundColor}
+              onClick={() => {
+                // 创建一个字体管理对话框
+                const message = customFonts.map((font, index) => 
+                  `${index + 1}. ${font.name}`
+                ).join('\n');
+                
+                const fontIndex = window.prompt(
+                  `输入要删除的字体编号（1-${customFonts.length}）：\n${message}`, 
+                  ""
+                );
+                
+                if (fontIndex && !isNaN(fontIndex)) {
+                  const index = parseInt(fontIndex) - 1;
+                  if (index >= 0 && index < customFonts.length) {
+                    const fontToDelete = customFonts[index];
+                    if (window.confirm(`确定要删除字体 "${fontToDelete.name}" 吗？`)) {
+                      deleteCustomFont(fontToDelete.id);
+                    }
+                  }
+                }
+              }}
+              style={{
+                border: 'none',
+                background: isDark ? '#2c2c2e' : '#f2f2f7',
+                padding: '6px 12px',
+                borderRadius: '12px',
+                fontSize: '13px',
+                color: isDark ? '#f5f5f7' : '#1d1d1f',
+                cursor: 'pointer'
+              }}
             >
-              开始阅读
+              管理字体
             </button>
           )}
+        </div>
+        
+        <div style={{
+          ...styles.fontPreview,
+          fontFamily: getCurrentFont(),
+        }}>
+          字体预览 - 這是中文示例
+        </div>
+      </div>
+
+      {/* 背景颜色选择器 */}
+      <div style={{marginBottom: '24px'}}>
+        <div style={styles.colorPickerLabel}>背景颜色</div>
+        <div style={styles.colorPickerContainer}>
+          {(isDark ? backgroundColors.dark : backgroundColors.light).map((color, index) => (
+            <div
+              key={index}
+              title={color.name}
+              onClick={() => selectBackgroundColor(color.value)}
+              style={{
+                ...styles.colorOption,
+                backgroundColor: color.value,
+                ...(getCurrentBackgroundColor() === color.value ? styles.colorOptionActive : {})
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      
+      <div style={styles.fontOptionContainer}>
+        <div style={styles.fontOptionLabel}>字体大小</div>
+        
+        <div style={{
+          display: 'flex', 
+          gap: '16px', 
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '0 auto',
+          maxWidth: '300px',
+          backgroundColor: isDark ? 'rgba(60, 60, 60, 0.5)' : 'rgba(240, 240, 240, 0.5)',
+          borderRadius: '8px',
+          padding: '12px'
+        }}>
+          <button 
+            onClick={() => setFontSize(prev => Math.max(16, prev - 4))}
+            style={{
+              ...styles.iconButton,
+              fontSize: '16px',
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '50%',
+              backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+              color: isDark ? '#f5f5f7' : '#1d1d1f',
+              border: `1px solid ${isDark ? '#424245' : '#d2d2d7'}`,
+            }}
+          >
+            A-
+          </button>
           
-          <style jsx global>{`
-            @keyframes fadeOut {
-              from { opacity: 0.8; }
-              to { opacity: 0; }
-            }
-            
-            /* 移动设备适配样式 */
-            @media (max-width: 480px) {
-              body {
-                overscroll-behavior: none; /* 防止iOS上的橡皮筋效果 */
-              }
-            }
-          `}</style>
+          <div style={{
+            fontSize: '17px',
+            color: isDark ? '#f5f5f7' : '#1d1d1f',
+            fontWeight: '500',
+            minWidth: '70px',
+            textAlign: 'center'
+          }}>
+            {fontSize}px
+          </div>
+          
+          <button 
+            onClick={() => setFontSize(prev => Math.min(80, prev + 4))}
+            style={{
+              ...styles.iconButton,
+              fontSize: '16px',
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: '50%',
+              backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+              color: isDark ? '#f5f5f7' : '#1d1d1f',
+              border: `1px solid ${isDark ? '#424245' : '#d2d2d7'}`,
+            }}
+          >
+            A+
+          </button>
         </div>
       </div>
     </div>
   );
-} 
+};
+
+  // 设置内容
+  {isMenuOpen && renderSettings()}
+  
+  // 笔记本模态框
+  {showNotebook && renderNotebook()}
+
+  // 主组件的return语句
+  return (
+    <div style={{
+      minHeight: '100vh',
+      backgroundColor: getCurrentBackgroundColor(),
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}>
+      {/* 现有代码... */}
+      
+      {/* 设置内容 */}
+      {isMenuOpen && renderSettings()}
+      
+      {/* 笔记本模态框 */}
+      {showNotebook && renderNotebook()}
+    </div>
+  );
+}
