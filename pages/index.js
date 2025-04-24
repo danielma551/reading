@@ -949,6 +949,53 @@ export default function Home() {
     }
   };
 
+  // 添加：导出笔记为TXT文件的函数
+  const exportNotebookToTxt = () => {
+    // 检查是否有保存的笔记
+    if (!savedSentences || savedSentences.length === 0) {
+      alert('没有笔记可导出');
+      return;
+    }
+    
+    // 创建文件内容
+    let content = '我的阅读笔记\n\n';
+    content += `导出时间：${new Date().toLocaleString()}\n\n`;
+    content += '--------------------------------\n\n';
+    
+    // 遍历所有笔记，添加到内容中
+    savedSentences.forEach((sentence, index) => {
+      // 格式化日期
+      const date = new Date(sentence.date);
+      const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+      
+      content += `【${index + 1}】${sentence.text}\n`;
+      content += `来源：${sentence.source}\n`;
+      content += `保存日期：${formattedDate}\n\n`;
+      content += '--------------------------------\n\n';
+    });
+    
+    // 创建Blob对象
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    
+    // 创建下载链接
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `我的阅读笔记_${new Date().toISOString().split('T')[0]}.txt`;
+    
+    // 触发下载
+    document.body.appendChild(a);
+    a.click();
+    
+    // 清理
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 0);
+    
+    alert('笔记已成功导出为TXT文件');
+  };
+
   // 管理庆祝动画的useEffect
   useEffect(() => {
     // 只有当showCelebration为true时才执行
@@ -2806,21 +2853,48 @@ export default function Home() {
             }}>
               我的笔记本
             </div>
-            <button
-              onClick={() => setShowNotebook(false)}
-              style={{
-                border: 'none',
-                backgroundColor: isDark ? '#1c1c1e' : '#e5e5ea',
-                color: isDark ? '#f5f5f7' : '#1d1d1f',
-                borderRadius: '8px',
-                padding: '8px 16px',
-                fontSize: '15px',
-                fontWeight: '500',
-                cursor: 'pointer'
-              }}
-            >
-              关闭
-            </button>
+            <div style={{
+              display: 'flex',
+              gap: '10px'
+            }}>
+              {/* 添加导出为TXT按钮 */}
+              {savedSentences.length > 0 && (
+                <button
+                  onClick={exportNotebookToTxt}
+                  style={{
+                    border: 'none',
+                    backgroundColor: isDark ? '#0a84ff' : '#007aff',
+                    color: '#ffffff',
+                    borderRadius: '8px',
+                    padding: '8px 16px',
+                    fontSize: '15px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                >
+                  <span style={{ fontSize: '14px' }}>📄</span>
+                  导出为TXT
+                </button>
+              )}
+              <button
+                onClick={() => setShowNotebook(false)}
+                style={{
+                  border: 'none',
+                  backgroundColor: isDark ? '#1c1c1e' : '#e5e5ea',
+                  color: isDark ? '#f5f5f7' : '#1d1d1f',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '15px',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                关闭
+              </button>
+            </div>
           </div>
           
           {savedSentences.length === 0 ? (
