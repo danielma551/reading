@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
 
 export default function Home() {
   // 添加客户端渲染检测状态
@@ -26,6 +27,10 @@ export default function Home() {
   const [showCelebration, setShowCelebration] = useState(false);
   // 新增：已完成的句子数
   const [completedSentences, setCompletedSentences] = useState(0);
+  // 新增：保存的句子状态
+  const [savedSentences, setSavedSentences] = useState([]);
+  // 新增：笔记本显示状态
+  const [showNotebook, setShowNotebook] = useState(false);
 
   // 初始化客户端检测
   useEffect(() => {
@@ -65,6 +70,9 @@ export default function Home() {
       const savedFont = localStorage.getItem('selectedFont');
       // 新增：加载自定义字体
       const savedCustomFonts = localStorage.getItem('customFonts');
+      
+      // 新增：加载保存的句子
+      setSavedSentences(getSavedSentences());
       
       if (savedData) {
         const parsedData = JSON.parse(savedData);
@@ -431,6 +439,85 @@ export default function Home() {
   // 根据currentIndex在整个文档中的位置计算总体进度
   const calculateOverallPercentage = () => {
     return ((currentIndex + 1) / Math.min(formattedText.length, readingGoal)) * 100;
+  };
+
+  // 保存当前句子到笔记本
+  const saveCurrentSentence = () => {
+    if (!isClient || !formattedText || formattedText.length === 0 || currentIndex < 0 || currentIndex >= formattedText.length) {
+      return;
+    }
+    
+    // 获取当前句子
+    const sentence = formattedText[currentIndex];
+    
+    // 获取当前文本的名称
+    const source = savedTexts.length > 0 && selectedSavedText !== null 
+      ? savedTexts[selectedSavedText].name 
+      : '未知来源';
+    
+    // 使用工具函数保存句子
+    const result = saveSentence(sentence, source, currentIndex);
+    
+    if (result.success) {
+      // 更新状态
+      setSavedSentences(getSavedSentences());
+      
+      // 提示用户
+      alert(result.message);
+    } else {
+      // 保存失败
+      alert('保存句子失败，请重试');
+    }
+  };
+  
+  // 删除收藏的句子
+  const deleteSavedSentence = (id) => {
+    if (!isClient) return;
+    
+    // 确认删除
+    if (window.confirm('确定要删除这个收藏的句子吗？')) {
+      // 使用工具函数删除句子
+      const result = deleteSentence(id);
+      
+      if (result.success) {
+        // 更新状态
+        setSavedSentences(getSavedSentences());
+      } else {
+        alert('删除失败，请重试');
+      }
+    }
+  };
+  
+  // 跳转到收藏句子的原始位置
+  const jumpToSavedSentence = (position, source) => {
+    if (!isClient) return;
+    
+    // 查找句子所在的文本索引
+    let textIndex = null;
+    
+    if (source !== '未知来源') {
+      // 查找对应文本的索引
+      textIndex = savedTexts.findIndex(text => text.name === source);
+    }
+    
+    // 如果找到了对应的文本
+    if (textIndex !== null && textIndex !== -1) {
+      // 加载该文本
+      loadSavedText(textIndex);
+      
+      // 设置当前位置
+      setCurrentIndex(position);
+      
+      // 关闭笔记本模态框
+      setShowNotebook(false);
+      
+      // 如果不在阅读模式，切换到阅读模式
+      if (!isReading) {
+        toggleReadingMode();
+      }
+    } else {
+      alert('无法找到原始文本，可能已被删除。');
+    }
   };
 
   const startNewSession = () => {
@@ -1714,6 +1801,22 @@ export default function Home() {
                 导出数据备份
               </button>
               
+              {/* 添加查看笔记本按钮 */}
+              <button
+                onClick={() => setShowNotebook(true)}
+                style={{
+                  ...styles.button,
+                  backgroundColor: isDark ? '#2c2c2e' : '#e5e5ea',
+                  color: isDark ? '#f5f5f7' : '#1d1d1f',
+                  fontWeight: '500',
+                  fontSize: '14px',
+                  padding: '10px 16px',
+                  marginTop: '10px'
+                }}
+              >
+                查看收藏的句子
+              </button>
+              
               <div style={{
                 position: 'relative',
                 overflow: 'hidden'
@@ -2056,7 +2159,27 @@ export default function Home() {
                 阅读进度: {calculateSessionProgress()}/{readingGoal}句 ({Math.round(calculateOverallPercentage())}%)
               </div>
               
-              {/* 删除保存句子按钮 */}
+              {/* 添加保存句子按钮 */}
+              <button
+                onClick={saveCurrentSentence}
+                style={{
+                  border: 'none',
+                  backgroundColor: isDark ? '#0a84ff' : '#007aff',
+                  color: '#ffffff',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <span style={{ fontSize: '14px' }}>📝</span> 
+                保存句子
+              </button>
             </div>
             
             {/* 分隔线 */}
@@ -2629,6 +2752,151 @@ export default function Home() {
           `}</style>
         </div>
       </div>
+      
+      {/* 笔记本模态框 */}
+      {showNotebook && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundColor: getCurrentBackgroundColor(),
+          zIndex: 1000,
+          overflowY: 'auto',
+          padding: '20px'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px'
+          }}>
+            <div style={{
+              fontSize: '24px',
+              fontWeight: 'bold',
+              color: isDark ? '#f5f5f7' : '#1d1d1f'
+            }}>
+              我的笔记本
+            </div>
+            <button
+              onClick={() => setShowNotebook(false)}
+              style={{
+                border: 'none',
+                backgroundColor: isDark ? '#1c1c1e' : '#e5e5ea',
+                color: isDark ? '#f5f5f7' : '#1d1d1f',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                fontSize: '15px',
+                fontWeight: '500',
+                cursor: 'pointer'
+              }}
+            >
+              关闭
+            </button>
+          </div>
+          
+          {savedSentences.length === 0 ? (
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '50vh',
+              textAlign: 'center',
+              color: isDark ? '#8e8e93' : '#8e8e93'
+            }}>
+              <div style={{fontSize: '40px', marginBottom: '20px'}}>
+                📝
+              </div>
+              <div style={{
+                fontSize: '18px',
+                fontWeight: '600',
+                marginBottom: '10px',
+                color: isDark ? '#f5f5f7' : '#1d1d1f'
+              }}>
+                暂无收藏的句子
+              </div>
+              <div style={{fontSize: '14px'}}>
+                在阅读时点击"保存句子"按钮收藏喜欢的句子
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{
+                marginBottom: '20px',
+                fontSize: '14px',
+                color: isDark ? '#8e8e93' : '#8e8e93'
+              }}>
+                共 {savedSentences.length} 条收藏
+              </div>
+              {savedSentences.map((sentence) => {
+                // 格式化日期
+                const date = new Date(sentence.date);
+                const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+                
+                return (
+                  <div key={sentence.id} style={{
+                    backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    marginBottom: '16px',
+                    boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)'
+                  }}>
+                    <div style={{
+                      fontSize: '16px',
+                      lineHeight: '1.5',
+                      marginBottom: '10px',
+                      color: isDark ? '#f5f5f7' : '#1d1d1f'
+                    }}>
+                      {sentence.text}
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: '13px',
+                      color: isDark ? '#8e8e93' : '#8e8e93'
+                    }}>
+                      <div>
+                        来源: {sentence.source} | {formattedDate}
+                        {sentence.position !== undefined && (
+                          <button
+                            onClick={() => jumpToSavedSentence(sentence.position, sentence.source)}
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: isDark ? '#0a84ff' : '#007aff',
+                              cursor: 'pointer',
+                              padding: '0 0 0 10px',
+                              fontSize: '13px',
+                              textDecoration: 'underline'
+                            }}
+                          >
+                            查看原文
+                          </button>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => deleteSavedSentence(sentence.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ff3b30',
+                          cursor: 'pointer',
+                          padding: 0,
+                          fontSize: '13px'
+                        }}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 } 
