@@ -31,6 +31,9 @@ export default function Home() {
   const [savedSentences, setSavedSentences] = useState([]);
   // 新增：笔记本显示状态
   const [showNotebook, setShowNotebook] = useState(false);
+  const [lastGoalSetDate, setLastGoalSetDate] = useState(null); // 新增：记录上次设置阅读目标的日期
+  const [todayCompletedSentences, setTodayCompletedSentences] = useState(0); // 新增：记录今日已阅读的句子数
+  const [goalCompleted, setGoalCompleted] = useState(false); // 新增：记录今日阅读目标是否已完成
 
   // 初始化客户端检测
   useEffect(() => {
@@ -68,6 +71,12 @@ export default function Home() {
       const savedBackgroundColor = localStorage.getItem('backgroundColor');
       const savedReadingGoal = localStorage.getItem('readingGoal');
       const savedFont = localStorage.getItem('selectedFont');
+      // 新增：加载上次设置阅读目标的日期
+      const savedGoalDate = localStorage.getItem('lastGoalSetDate');
+      // 新增：加载今日已完成的句子数
+      const savedCompletedSentences = localStorage.getItem('todayCompletedSentences');
+      // 新增：加载目标完成状态
+      const savedGoalCompleted = localStorage.getItem('goalCompleted');
       // 新增：加载自定义字体
       const savedCustomFonts = localStorage.getItem('customFonts');
       
@@ -90,6 +99,35 @@ export default function Home() {
 
       if (savedReadingGoal) {
         setReadingGoal(parseInt(savedReadingGoal));
+      }
+      
+      // 加载上次设置阅读目标的日期
+      if (savedGoalDate) {
+        setLastGoalSetDate(savedGoalDate);
+      }
+      
+      // 加载今日已完成的句子数
+      if (savedCompletedSentences && savedGoalDate) {
+        const today = new Date().toISOString().split('T')[0];
+        // 只有当上次设置的日期是今天时，才加载已完成的句子数
+        if (savedGoalDate === today) {
+          setTodayCompletedSentences(parseInt(savedCompletedSentences));
+        } else {
+          // 如果不是今天，重置为0
+          localStorage.removeItem('todayCompletedSentences');
+        }
+      }
+      
+      // 加载目标完成状态
+      if (savedGoalCompleted && savedGoalDate) {
+        const today = new Date().toISOString().split('T')[0];
+        // 只有当上次设置的日期是今天时，才加载目标完成状态
+        if (savedGoalDate === today) {
+          setGoalCompleted(savedGoalCompleted === 'true');
+        } else {
+          // 如果不是今天，重置为false
+          localStorage.removeItem('goalCompleted');
+        }
       }
       
       if (savedFont) {
@@ -363,18 +401,26 @@ export default function Home() {
 
   // 保存阅读目标到本地存储
   useEffect(() => {
+    // 只保存阅读目标数量，不修改设置日期
+    // 这样在toggleReadingMode中设置的日期信息就不会被覆盖
     localStorage.setItem('readingGoal', readingGoal.toString());
   }, [readingGoal]);
 
   // 计算当前阅读会话的进度
   const calculateSessionProgress = () => {
     const sentencesRead = currentIndex - sessionStartIndex + 1;
-    return Math.min(Math.max(sentencesRead, 0), readingGoal);
+    // 返回当前会话的进度（不包括之前已完成的）
+    return Math.min(Math.max(sentencesRead, 0), Math.max(readingGoal - todayCompletedSentences, 0));
+  };
+  
+  // 获取今日总进度（包括之前已完成的和当前会话的）
+  const calculateTotalProgress = () => {
+    return Math.min(todayCompletedSentences + calculateSessionProgress(), readingGoal);
   };
   
   // 检查是否已达成阅读目标
   const isGoalReached = () => {
-    return calculateSessionProgress() >= readingGoal;
+    return calculateTotalProgress() >= readingGoal;
   };
   
   // 检查阅读目标是否刚刚达成（用于触发庆祝动画）
@@ -384,13 +430,17 @@ export default function Home() {
     const prevSentencesRead = prevIndex - sessionStartIndex + 1;
     const newSentencesRead = newIndex - sessionStartIndex + 1;
     
+    // 计算包含之前已完成的总进度
+    const prevTotalProgress = todayCompletedSentences + Math.max(prevSentencesRead, 0);
+    const newTotalProgress = todayCompletedSentences + Math.max(newSentencesRead, 0);
+    
     // 之前未达到目标，但现在达到了
-    return (prevSentencesRead < readingGoal && newSentencesRead >= readingGoal);
+    return (prevTotalProgress < readingGoal && newTotalProgress >= readingGoal);
   };
 
   // 计算当前会话进度百分比
   const calculateSessionProgressPercentage = () => {
-    return (calculateSessionProgress() / readingGoal) * 100;
+    return (calculateSessionProgress() / Math.max(readingGoal - todayCompletedSentences, 1)) * 100;
   };
 
   // 获取当前段落内的位置 (0-24)，这将用于计算当前段落内的进度
@@ -759,18 +809,68 @@ export default function Home() {
 
   const toggleReadingMode = () => {
     if (!isReading) {
-      // 开始阅读前询问今日目标句子数
-      const input = window.prompt('请输入今日计划阅读句子数：', readingGoal);
-      if (input !== null) {
-        const goal = parseInt(input, 10);
-        if (!isNaN(goal) && goal > 0) {
-          setReadingGoal(goal);
+      // 开始阅读模式
+      // 检查是否需要询问今日目标
+      const today = new Date().toISOString().split('T')[0]; // 获取当前日期，格式为 YYYY-MM-DD
+      const shouldAskGoal = !lastGoalSetDate || lastGoalSetDate !== today || goalCompleted;
+      
+      if (shouldAskGoal) {
+        // 如果是新的一天、之前没有设置过目标或目标已完成，询问用户
+        const promptMessage = goalCompleted 
+          ? '您已完成当前阅读目标，请设置新的阅读目标句子数：' 
+          : '请输入今日计划阅读句子数：';
+        
+        const input = window.prompt(promptMessage, readingGoal);
+        if (input !== null) {
+          const goal = parseInt(input, 10);
+          if (!isNaN(goal) && goal > 0) {
+            setReadingGoal(goal);
+            // 保存今日日期和目标
+            setLastGoalSetDate(today);
+            localStorage.setItem('lastGoalSetDate', today);
+            localStorage.setItem('readingGoal', goal.toString());
+            
+            if (goalCompleted) {
+              // 如果是已完成目标后重新设置，重置已完成状态和今日已读数
+              setGoalCompleted(false);
+              localStorage.setItem('goalCompleted', 'false');
+              setTodayCompletedSentences(0);
+              localStorage.setItem('todayCompletedSentences', '0');
+            } else {
+              // 如果是新的一天，重置今日已完成的句子数
+              setTodayCompletedSentences(0);
+              localStorage.setItem('todayCompletedSentences', '0');
+            }
+          }
         }
+      } else {
+        // 如果已经设置了当天的目标，考虑已完成的句子数
+        const remainingGoal = Math.max(readingGoal - todayCompletedSentences, 0);
+        console.log(`今日已读：${todayCompletedSentences}句，剩余目标：${remainingGoal}句`);
+        // 不需要修改readingGoal，因为我们在显示和计算时会考虑已完成的部分
       }
+      
       // 设置当前会话起点
       setSessionStartIndex(currentIndex);
       // 重置庆祝状态
       setShowCelebration(false);
+    } else {
+      // 退出阅读模式
+      // 计算这次会话阅读了多少句
+      const sentencesRead = currentIndex - sessionStartIndex + 1;
+      if (sentencesRead > 0) {
+        // 更新今日已完成的句子数
+        const newCompleted = todayCompletedSentences + sentencesRead;
+        setTodayCompletedSentences(newCompleted);
+        localStorage.setItem('todayCompletedSentences', newCompleted.toString());
+        console.log(`本次阅读了${sentencesRead}句，今日总计：${newCompleted}句`);
+        
+        // 检查是否已达到目标
+        if (newCompleted >= readingGoal && !goalCompleted) {
+          setGoalCompleted(true);
+          localStorage.setItem('goalCompleted', 'true');
+        }
+      }
     }
     setIsReading(!isReading);
   };
@@ -785,10 +885,14 @@ export default function Home() {
     
     // 如果下一个操作会刚好达成阅读目标
     if (justReachedGoal(prevIndex, newIndex)) {
-      // 设置已完成的句子数
-      setCompletedSentences(readingGoal);
+      // 设置当前会话已完成的句子数（而不是目标总数）
+      // 我们使用calculateSessionProgress而不是readingGoal，因为前者已经考虑了todayCompletedSentences
+      setCompletedSentences(calculateSessionProgress());
       // 显示庆祝动画
       setShowCelebration(true);
+      // 设置目标已完成标志
+      setGoalCompleted(true);
+      localStorage.setItem('goalCompleted', 'true');
       
       // 更新索引
       setCurrentIndex(newIndex);
@@ -2203,7 +2307,7 @@ export default function Home() {
                 fontWeight: '600',
                 color: isDark ? '#f5f5f7' : '#1d1d1f',
               }}>
-                阅读进度: {calculateSessionProgress()}/{readingGoal}句 ({Math.round(calculateOverallPercentage())}%)
+                阅读进度: {calculateSessionProgress()}/{readingGoal - todayCompletedSentences}句 (总进度: {calculateTotalProgress()}/{readingGoal}句, {Math.round((calculateTotalProgress() / readingGoal) * 100)}%)
               </div>
               
               <div style={{
