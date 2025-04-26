@@ -3,11 +3,11 @@ import { exec } from 'child_process';
 import path from 'path';
 
 // Python 解释器的路径 (根据需要调整，或者如果 python 在 PATH 中则直接使用 'python')
-const PYTHON_EXECUTABLE = 'python'; // 或者 'python3'
+const PYTHON_EXECUTABLE = 'python3'; // 或者 'python3'
 // search_index.py 脚本的路径
 const SCRIPT_PATH = path.join(process.cwd(), 'search_index.py');
 // 文本文件目录（确保与 search_index.py 中的默认值一致）
-const TEXTS_DIR = path.join(process.cwd(), 'public', 'uploaded_texts');
+const TEXTS_DIR = path.join(process.cwd(), 'public', 'texts');
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {

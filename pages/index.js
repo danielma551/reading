@@ -1929,30 +1929,43 @@ export default function Home() {
     return [firstSegmentProgress, secondSegmentProgress, thirdSegmentProgress];
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
+  const handleSearch = () => { 
+    const query = searchQuery.trim().toLowerCase(); // 准备查询词，忽略大小写
+    if (!query) {
       alert('请输入搜索词');
       return;
     }
     setIsSearching(true);
-    setSearchResults([]); // Clear previous results
-    setError(null); // Clear previous errors
+    setSearchResults([]); // 清空旧结果
+    setError(null); // 清空旧错误
 
     try {
-      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery.trim())}`);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `搜索失败，状态码: ${response.status}`);
+      // 直接从 state 读取 savedTexts
+      const localResults = savedTexts
+        .filter(textItem =>
+          // 检查内容是否包含查询词（忽略大小写）
+          textItem.content.toLowerCase().includes(query) ||
+          // 或者检查文件名是否包含查询词（忽略大小写）
+          textItem.name.toLowerCase().includes(query)
+        )
+        .map(textItem => ({
+          doc_id: textItem.name, // 使用文件名作为 ID
+          score: 0 // 纯前端简单搜索，暂时不计算得分
+          // 未来可以增加：提取包含关键词的片段
+        }));
+
+      setSearchResults(localResults);
+
+      if (localResults.length === 0) {
+        setError('没有在本地保存的文本中找到匹配项。'); // 提示用户无结果
       }
-      const results = await response.json();
-      // Check if results is an array, default to empty if not
-      setSearchResults(Array.isArray(results) ? results : []);
-    } catch (err) {
-      console.error('搜索 API 调用失败:', err);
-      setError(`搜索失败: ${err.message}`);
-      setSearchResults([]);
+
+    } catch (err) { // 捕获可能的过滤/映射错误
+        console.error('前端搜索执行出错:', err);
+        setError(`搜索时发生错误: ${err.message}`);
+        setSearchResults([]);
     } finally {
-      setIsSearching(false);
+      setIsSearching(false); // 结束搜索状态
     }
   };
 
@@ -2355,7 +2368,6 @@ export default function Home() {
                     padding: '4px 8px',
                     borderRadius: '4px',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px'
@@ -2377,7 +2389,6 @@ export default function Home() {
                     padding: '4px 8px',
                     borderRadius: '4px',
                     cursor: 'pointer',
-                    transition: 'all 0.2s ease',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '4px'
@@ -2964,7 +2975,7 @@ export default function Home() {
             }
           `}</style>
         </div>
-      </div>
+      </div> );
       
       {/* 搜索面板 */}
       {showSearchPanel && (
