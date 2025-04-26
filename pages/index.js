@@ -10,7 +10,7 @@ export default function Home() {
   const [isReading, setIsReading] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isDark, setIsDark] = useState(false);
-  const [fontSize, setFontSize] = useState(20); // 默认字体大小
+  const [fontSize, setFontSize] = useState(20); // 先设置为默认值
   const [savedTexts, setSavedTexts] = useState([]);
   const [selectedSavedText, setSelectedSavedText] = useState(null);
   const [lastPositions, setLastPositions] = useState({});
@@ -37,10 +37,27 @@ export default function Home() {
   const [goalCompleted, setGoalCompleted] = useState(false); // 新增：记录今日阅读目标是否已完成
   const [showSearch, setShowSearch] = useState(false);
 
-  // 初始化客户端检测
+  // 字体大小调整函数
+  const adjustFontSize = (delta) => {
+    // 计算新字体大小，限制在 12px 到 72px 之间
+    const newSize = Math.max(12, Math.min(72, fontSize + delta));
+    // 更新 React 状态
+    setFontSize(newSize);
+    // 保存到 localStorage
+    localStorage.setItem('fontSize', newSize.toString());
+  };
+
+  // 初始化客户端检测和加载 localStorage 数据
   useEffect(() => {
     setIsClient(true);
     
+    // === 新增：加载字体大小 ===
+    const savedFontSize = localStorage.getItem('fontSize');
+    if (savedFontSize) {
+      setFontSize(parseInt(savedFontSize));
+    }
+    // ========================
+
     // 检测深色模式
     const darkModeMedia = window.matchMedia('(prefers-color-scheme: dark)');
     if (darkModeMedia.matches) {
@@ -49,6 +66,12 @@ export default function Home() {
 
     // 设置字体大小，根据屏幕宽度自动调整
     function updateFontSize() {
+      // === 新增：如果用户已设置，则不自动调整 ===
+      if (localStorage.getItem('fontSize')) {
+        return; 
+      }
+      // =======================================
+      
       const width = window.innerWidth;
       if (width < 480) {
         // 针对较小的手机屏幕
@@ -1398,7 +1421,7 @@ export default function Home() {
       touchAction: 'pan-x pan-y', // 允许滑动但不影响点击
     },
     textContent: {
-      fontSize: `${fontSize}px`,
+      fontSize: `${fontSize}px`, // 应用字体大小
       textAlign: 'center',
       maxWidth: '90%',
       fontWeight: '300',
@@ -1727,7 +1750,7 @@ export default function Home() {
       margin: '0 auto',
       fontFamily: getCurrentFont(),
       appearance: 'none',
-      backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='${isDark ? '%23f5f5f7' : '%231d1d1f'}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+      backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='${isDark ? '%23f5f5f7' : '%231d1d1f'}' stroke='${isDark ? '%23f5f5f7' : '%231d1d1f'}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
       backgroundRepeat: 'no-repeat',
       backgroundPosition: 'right 10px center',
       backgroundSize: '16px',
@@ -1952,7 +1975,7 @@ export default function Home() {
               <div 
                 style={{
                   height: '100%',
-                  backgroundColor: isGoalReached() ? 'rgba(48, 209, 88, 0.8)' : (isDark ? 'rgba(10, 132, 255, 0.8)' : 'rgba(0, 102, 204, 0.8)'),
+                  backgroundColor: isGoalReached() ? '#30d158' : (isDark ? '#0a84ff' : '#06c'),
                   borderRadius: '3px',
                   transition: 'width 0.3s ease',
                   width: goalProgressWidth
@@ -2170,7 +2193,7 @@ export default function Home() {
               padding: '12px'
             }}>
               <button 
-                onClick={() => setFontSize(prev => Math.max(16, prev - 4))}
+                onClick={() => adjustFontSize(-4)}
                 style={{
                   ...styles.iconButton,
                   fontSize: '16px',
@@ -2199,7 +2222,7 @@ export default function Home() {
               </div>
               
               <button 
-                onClick={() => setFontSize(prev => Math.min(80, prev + 4))}
+                onClick={() => adjustFontSize(4)}
                 style={{
                   ...styles.iconButton,
                   fontSize: '16px',
@@ -3042,94 +3065,59 @@ export default function Home() {
         right: '20px',
         display: 'flex',
         gap: '10px',
-        zIndex: 100
+        zIndex: 100,
+        backgroundColor: isDark ? 'rgba(28, 28, 30, 0.8)' : 'rgba(255, 255, 255, 0.8)', // 半透明背景
+        padding: '8px',
+        borderRadius: '12px',
+        backdropFilter: 'blur(10px)', // 模糊效果
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)', // 轻微阴影
+        alignItems: 'center' // 垂直居中对齐
       }}>
-        {/* 搜索按钮 */}
         <button
-          onClick={() => setShowSearch(true)}
+          onClick={() => adjustFontSize(-4)}
           style={{
-            display: 'flex',
-            alignItems: 'center',
             padding: '8px 16px',
-            backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+            backgroundColor: isDark ? '#2c2c2e' : '#f0f0f0',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
-            boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)',
-            color: isDark ? '#ffffff' : '#000000'
+            color: isDark ? '#ffffff' : '#000000',
+            fontSize: '14px',
+            fontWeight: '500',
+            transition: 'background-color 0.2s ease' // 添加过渡效果
           }}
+          onMouseOver={e => e.currentTarget.style.backgroundColor = isDark ? '#3a3a3c' : '#e0e0e0'} // 悬停效果
+          onMouseOut={e => e.currentTarget.style.backgroundColor = isDark ? '#2c2c2e' : '#f0f0f0'} // 移出效果
         >
-          <span style={{ marginRight: '8px' }}>🔍</span>
-          搜索
+          A-
         </button>
-
-        {/* 设置按钮 */}
+        <div style={{
+          minWidth: '40px', // 保证宽度
+          textAlign: 'center', // 居中显示
+          color: isDark ? '#ffffff' : '#000000',
+          fontSize: '14px'
+        }}>
+          {fontSize}px
+        </div>
         <button
-          onClick={toggleMenu}
+          onClick={() => adjustFontSize(4)}
           style={{
-            display: 'flex',
-            alignItems: 'center',
             padding: '8px 16px',
-            backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+            backgroundColor: isDark ? '#2c2c2e' : '#f0f0f0',
             border: 'none',
             borderRadius: '8px',
             cursor: 'pointer',
-            boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)',
-            color: isDark ? '#ffffff' : '#000000'
+            color: isDark ? '#ffffff' : '#000000',
+            fontSize: '14px',
+            fontWeight: '500',
+            transition: 'background-color 0.2s ease' // 添加过渡效果
           }}
+          onMouseOver={e => e.currentTarget.style.backgroundColor = isDark ? '#3a3a3c' : '#e0e0e0'} // 悬停效果
+          onMouseOut={e => e.currentTarget.style.backgroundColor = isDark ? '#2c2c2e' : '#f0f0f0'} // 移出效果
         >
-          <span style={{ marginRight: '8px' }}>⚙️</span>
-          设置
+          A+
         </button>
       </div>
-
-      {/* 搜索面板 */}
-      {showSearch && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.8)',
-          zIndex: 1000,
-          display: 'flex',
-          flexDirection: 'column'
-        }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '16px',
-            borderBottom: `1px solid ${isDark ? '#333' : '#ddd'}`
-          }}>
-            <h2 style={{
-              margin: 0,
-              color: isDark ? '#fff' : '#000'
-            }}>
-              搜索内容
-            </h2>
-            <button
-              onClick={() => setShowSearch(false)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: isDark ? '#fff' : '#000',
-                cursor: 'pointer',
-                fontSize: '16px'
-              }}
-            >
-              关闭
-            </button>
-          </div>
-          <div style={{ flex: 1, overflow: 'auto' }}>
-            <SearchPanel
-              isDark={isDark}
-              onSelect={handleSearchResult}
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 } 
