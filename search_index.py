@@ -3,6 +3,9 @@ import re
 import math
 from typing import Dict, List, Set, Tuple
 from difflib import SequenceMatcher
+import os
+import argparse
+import json
 
 class SearchIndex:
     def __init__(self):
@@ -123,3 +126,56 @@ class SearchIndex:
         :return: 文档内容
         """
         return self.documents.get(doc_id, "")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Search for text files.")
+    parser.add_argument("--query", type=str, required=True, help="The search query.")
+    parser.add_argument("--texts_dir", type=str, default="public/uploaded_texts", help="Directory containing text files to index.")
+    parser.add_argument("--max_results", type=int, default=10, help="Maximum number of search results.")
+    parser.add_argument("--fuzzy", type=bool, default=True, help="Enable fuzzy matching.")
+    parser.add_argument("--min_similarity", type=float, default=0.8, help="Minimum similarity for fuzzy matching.")
+    args = parser.parse_args()
+
+    index = SearchIndex()
+    texts_directory = args.texts_dir
+
+    # Check if the directory exists
+    if not os.path.isdir(texts_directory):
+        print(json.dumps({"error": f"Directory not found: {texts_directory}"}))
+        exit(1)
+
+    # Index all .txt files in the specified directory
+    try:
+        for filename in os.listdir(texts_directory):
+            if filename.endswith(".txt"):
+                file_path = os.path.join(texts_directory, filename)
+                doc_id = filename # Use filename as doc_id for simplicity
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    index.add_document(doc_id, content)
+                except Exception as e:
+                    # Log indexing error for a specific file but continue
+                    print(json.dumps({"warning": f"Error indexing file {filename}: {e}"}), flush=True) 
+                    # Using print with flush=True for warnings/errors to ensure they appear immediately
+    except Exception as e:
+         print(json.dumps({"error": f"Error reading directory {texts_directory}: {e}"}), flush=True)
+         exit(1)
+
+    # Perform the search
+    search_results = index.search(
+        query=args.query,
+        max_results=args.max_results,
+        fuzzy_match=args.fuzzy,
+        min_similarity=args.min_similarity
+    )
+
+    # Prepare results with document content snippets (optional, could add later)
+    output_results = []
+    for doc_id, score in search_results:
+        # content = index.get_document(doc_id)
+        # snippet = content[:100] + "..." # Example snippet
+        output_results.append({"doc_id": doc_id, "score": score})
+
+    # Print results as JSON
+    print(json.dumps(output_results))

@@ -35,7 +35,11 @@ export default function Home() {
   const [lastGoalSetDate, setLastGoalSetDate] = useState(null); // 新增：记录上次设置阅读目标的日期
   const [todayCompletedSentences, setTodayCompletedSentences] = useState(0); // 新增：记录今日已阅读的句子数
   const [goalCompleted, setGoalCompleted] = useState(false); // 新增：记录今日阅读目标是否已完成
-  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState(''); // New state for search query
+  const [searchResults, setSearchResults] = useState([]); // New state for search results
+  const [isSearching, setIsSearching] = useState(false); // New state for search loading
+  const [error, setError] = useState(null); // New state for search error
+  const [showSearchPanel, setShowSearchPanel] = useState(false); // 新增：控制搜索面板的状态
 
   // 字体大小调整函数
   const adjustFontSize = (delta) => {
@@ -754,7 +758,7 @@ export default function Home() {
     }
   };
 
-  const saveText = (name, content) => {
+  const saveText = async (name, content) => { 
     try {
       const newSavedTexts = [...savedTexts];
       
@@ -776,7 +780,28 @@ export default function Home() {
       // 保存到本地存储
       localStorage.setItem('savedTexts', JSON.stringify(newSavedTexts));
       localStorage.setItem('lastReadTextIndex', selectedSavedText !== null ? selectedSavedText.toString() : '0');
-      
+
+      // === 新增：发送到后端 API ===
+      try {
+        const response = await fetch('/api/save-uploaded-text', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ filename: name, content: content }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('后端保存文件失败:', errorData.message || response.statusText);
+          // 这里可以选择是否通知用户，或者只是记录日志
+        }
+      } catch (apiError) {
+        console.error('调用后端 API 失败:', apiError);
+        // 网络错误等
+      }
+      // ===========================
+
       return true;
     } catch (error) {
       console.error('保存文本失败:', error);
@@ -1904,6 +1929,33 @@ export default function Home() {
     return [firstSegmentProgress, secondSegmentProgress, thirdSegmentProgress];
   };
 
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      alert('请输入搜索词');
+      return;
+    }
+    setIsSearching(true);
+    setSearchResults([]); // Clear previous results
+    setError(null); // Clear previous errors
+
+    try {
+      const response = await fetch(`/api/search?q=${encodeURIComponent(searchQuery.trim())}`);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `搜索失败，状态码: ${response.status}`);
+      }
+      const results = await response.json();
+      // Check if results is an array, default to empty if not
+      setSearchResults(Array.isArray(results) ? results : []);
+    } catch (err) {
+      console.error('搜索 API 调用失败:', err);
+      setError(`搜索失败: ${err.message}`);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   if (isReading && formattedText.length > 0) {
     // 苹果风格的阅读模式
     return (
@@ -2006,8 +2058,7 @@ export default function Home() {
               />
             </div>
             <div style={styles.goalProgressText}>
-              {calculateSessionProgress()} / {readingGoal} 句
-              {isGoalReached() ? ' · 目标达成！' : ''}
+              {calculateSessionProgress()} / {readingGoal - todayCompletedSentences} 句 (总进度: {calculateTotalProgress()} / {readingGoal} 句, {Math.round((calculateTotalProgress() / readingGoal) * 100)}%)
             </div>
             
             {isGoalReached() && (
@@ -2297,7 +2348,7 @@ export default function Home() {
                   onClick={saveCurrentSentence}
                   style={{
                     border: 'none',
-                    backgroundColor: isDark ? '#0a84ff' : '#007aff',
+                    background: isDark ? '#0a84ff' : '#007aff',
                     color: '#ffffff',
                     fontSize: '12px',
                     fontWeight: '600',
@@ -2319,7 +2370,7 @@ export default function Home() {
                   onClick={() => setShowNotebook(true)}
                   style={{
                     border: 'none',
-                    backgroundColor: isDark ? '#30d158' : '#34c759',
+                    background: isDark ? '#30d158' : '#34c759',
                     color: '#ffffff',
                     fontSize: '12px',
                     fontWeight: '600',
@@ -2672,6 +2723,12 @@ export default function Home() {
               >
                 {isDark ? '浅色' : '深色'}
               </button>
+              <button
+                onClick={() => setShowSearchPanel(!showSearchPanel)}
+                style={styles.modeButton}
+              >
+                搜索
+              </button>
             </div>
           </div>
 
@@ -2909,6 +2966,83 @@ export default function Home() {
         </div>
       </div>
       
+      {/* 搜索面板 */}
+      {showSearchPanel && (
+        <div className="settings-panel" style={{...styles.settingsPanel, zIndex: 999}}> 
+          <div style={styles.settingsHeader}>
+            <div style={styles.settingsTitle}>搜索文件</div>
+            <button onClick={() => setShowSearchPanel(false)} style={styles.closeButton}>×</button>
+          </div>
+          
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {/* Search Input and Button */}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="输入搜索关键词..."
+                style={{ 
+                  flexGrow: 1, 
+                  padding: '8px 12px', 
+                  borderRadius: '8px', 
+                  border: isDark ? '1px solid #3a3a3c' : '1px solid #dcdcdc',
+                  backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+                  color: isDark ? '#f5f5f7' : '#1d1d1f'
+                }}
+              />
+              <button 
+                onClick={handleSearch} 
+                disabled={isSearching}
+                style={{ 
+                  padding: '8px 15px', 
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: isDark ? '#0a84ff' : '#007aff',
+                  color: 'white',
+                  cursor: 'pointer',
+                  opacity: isSearching ? 0.6 : 1
+                }}
+              >
+                {isSearching ? '搜索中...' : '搜索'}
+              </button>
+            </div>
+            
+            {/* Loading Indicator */}
+            {isSearching && <div style={{ textAlign: 'center', color: isDark ? '#8e8e93' : '#8e8e93' }}>正在加载搜索结果...</div>}
+            
+            {/* Error Display */}
+            {error && <div style={{ color: '#ff3b30', backgroundColor: isDark ? 'rgba(255, 59, 48, 0.2)' : 'rgba(255, 59, 48, 0.1)', padding: '10px', borderRadius: '8px' }}>错误: {error}</div>}
+            
+            {/* Search Results */}
+            {!isSearching && searchResults.length > 0 && (
+              <div style={{ marginTop: '15px' }}>
+                <h3 style={{ marginBottom: '10px', fontSize: '16px', color: isDark ? '#f5f5f7' : '#1d1d1f' }}>搜索结果:</h3>
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: '300px', overflowY: 'auto' }}>
+                  {searchResults.map((result, index) => (
+                    <li key={index} style={{
+                      marginBottom: '10px',
+                      padding: '10px',
+                      backgroundColor: isDark ? '#1c1c1e' : '#f2f2f7',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      color: isDark ? '#f5f5f7' : '#1d1d1f'
+                    }}>
+                      <strong>文档:</strong> {result.doc_id} <br />
+                      <strong>相关度:</strong> {result.score.toFixed(4)}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {!isSearching && searchResults.length === 0 && searchQuery && !error && (
+              <div style={{ textAlign: 'center', color: isDark ? '#8e8e93' : '#8e8e93', marginTop: '15px' }}>没有找到匹配的结果。</div>
+            )}
+          </div>
+        </div>
+      )}
+      
       {/* 笔记本模态框 */}
       {showNotebook && (
         <div style={{
@@ -2957,7 +3091,7 @@ export default function Home() {
                     gap: '5px'
                   }}
                 >
-                  <span style={{ fontSize: '14px' }}>📄</span>
+                  <span style={{ fontSize: '14px' }}>📄</span> 
                   导出为TXT
                 </button>
               )}
@@ -3109,8 +3243,8 @@ export default function Home() {
             fontWeight: '500',
             transition: 'background-color 0.2s ease' // 添加过渡效果
           }}
-          onMouseOver={e => e.currentTarget.style.backgroundColor = isDark ? '#3a3a3c' : '#e0e0e0'} // 悬停效果
-          onMouseOut={e => e.currentTarget.style.backgroundColor = isDark ? '#2c2c2e' : '#f0f0f0'} // 移出效果
+          onMouseOver={(e) => { e.currentTarget.style.backgroundColor = isDark ? '#3a3a3c' : '#e0e0e0' }} // 悬停效果
+          onMouseOut={(e) => { e.currentTarget.style.backgroundColor = isDark ? '#2c2c2e' : '#f0f0f0' }} // 移出效果
         >
           A-
         </button>
@@ -3135,8 +3269,8 @@ export default function Home() {
             fontWeight: '500',
             transition: 'background-color 0.2s ease' // 添加过渡效果
           }}
-          onMouseOver={e => e.currentTarget.style.backgroundColor = isDark ? '#3a3a3c' : '#e0e0e0'} // 悬停效果
-          onMouseOut={e => e.currentTarget.style.backgroundColor = isDark ? '#2c2c2e' : '#f0f0f0'} // 移出效果
+          onMouseOver={(e) => { e.currentTarget.style.backgroundColor = isDark ? '#3a3a3c' : '#e0e0e0' }} // 悬停效果
+          onMouseOut={(e) => { e.currentTarget.style.backgroundColor = isDark ? '#2c2c2e' : '#f0f0f0' }} // 移出效果
         >
           A+
         </button>
