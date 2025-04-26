@@ -2,6 +2,14 @@ import { useState, useEffect, useCallback } from 'react';
 import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
 import SearchPanel from '../components/SearchPanel';
 
+// 辅助函数：将文本切分成句子（改进版，更健壮）
+const splitIntoSentences = (text) => {
+  if (!text) return [];
+  // 使用更可靠的正则表达式匹配中文和英文的句子结束符，并保留结束符
+  const sentences = text.match(/[^.?!。？！；]+[.?!。？！；]?/g);
+  return sentences ? sentences.map(s => s.trim()).filter(s => s) : [];
+};
+
 export default function Home() {
   // 添加客户端渲染检测状态
   const [isClient, setIsClient] = useState(false);
@@ -1942,28 +1950,53 @@ export default function Home() {
     try {
       // 直接从 state 读取 savedTexts
       const localResults = savedTexts
-        .filter(textItem =>
-          // 检查内容是否包含查询词（忽略大小写）
-          textItem.content.toLowerCase().includes(query) ||
-          // 或者检查文件名是否包含查询词（忽略大小写）
-          textItem.name.toLowerCase().includes(query)
-        )
-        .map(textItem => ({
-          doc_id: textItem.name, // 使用文件名作为 ID
-          score: 0 // 纯前端简单搜索，暂时不计算得分
-          // 未来可以增加：提取包含关键词的片段
-        }));
+        .map(textItem => {
+          // === 新增检查 ===
+          if (!textItem || typeof textItem.content !== 'string' || typeof textItem.name !== 'string') {
+            console.warn('Skipping invalid text item in savedTexts:', textItem); // 添加警告日志
+            return null; // 跳过无效项
+          }
+          // ===============
 
-      setSearchResults(localResults);
+          const contentLower = textItem.content.toLowerCase();
+          const nameLower = textItem.name.toLowerCase();
 
+          // 初步检查文档内容或名称是否包含关键词
+          if (contentLower.includes(query) || nameLower.includes(query)) {
+            // 切分文档内容为句子
+            const allSentences = splitIntoSentences(textItem.content);
+
+            // 过滤出包含查询词的句子
+            const matchingSentences = allSentences.filter(sentence =>
+               // === 新增检查 ===
+               typeof sentence === 'string' && // 确保句子是字符串
+               // ===============
+               sentence.toLowerCase().includes(query)
+            );
+
+            // 如果找到了匹配的句子，则返回结果对象
+            if (matchingSentences.length > 0) {
+              return {
+                doc_id: textItem.name,
+                sentences: matchingSentences // 包含所有匹配句子的数组
+              };
+            }
+          }
+          return null; // 如果文档不匹配或没有匹配句子，返回null
+        })
+        .filter(result => result !== null); // 过滤掉所有null结果
+
+      setSearchResults(localResults); // 更新搜索结果状态
+
+      // 如果没有找到任何结果，设置提示信息
       if (localResults.length === 0) {
-        setError('没有在本地保存的文本中找到匹配项。'); // 提示用户无结果
+        setError('没有在本地保存的文本中找到包含该词的句子。');
       }
 
-    } catch (err) { // 捕获可能的过滤/映射错误
-        console.error('前端搜索执行出错:', err);
-        setError(`搜索时发生错误: ${err.message}`);
-        setSearchResults([]);
+    } catch (err) { // 捕获处理过程中的错误
+      console.error('前端搜索执行出错:', err);
+      setError(`搜索时发生错误: ${err.message}`);
+      setSearchResults([]);
     } finally {
       setIsSearching(false); // 结束搜索状态
     }
@@ -3037,10 +3070,27 @@ export default function Home() {
                       backgroundColor: isDark ? '#1c1c1e' : '#f2f2f7',
                       borderRadius: '8px',
                       fontSize: '14px',
-                      color: isDark ? '#f5f5f7' : '#1d1d1f'
+                      color: isDark ? '#e0e0e0' : '#333333'
                     }}>
-                      <strong>文档:</strong> {result.doc_id} <br />
-                      <strong>相关度:</strong> {result.score.toFixed(4)}
+                      <div><strong>文档:</strong> {result.doc_id}</div>
+                      {/* 新增：显示匹配的句子列表 */}
+                      {result.sentences && result.sentences.length > 0 && (
+                        <div style={{
+                          marginTop: '8px',
+                          paddingLeft: '10px',
+                          borderLeft: `3px solid ${isDark ? '#0a84ff' : '#007aff'}`, // 使用主题颜色
+                          fontSize: '13px',
+                          color: isDark ? '#b0b0b0' : '#555555' // 使用主题颜色
+                        }}>
+                          {result.sentences.map((sentence, sIndex) => (
+                            // 使用 <p> 标签展示每个句子，允许换行
+                            <p key={sIndex} style={{ marginBottom: '5px', wordBreak: 'break-word' }}>
+                              {/* 可以考虑后续添加高亮关键词的功能 */}
+                              {sentence}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
