@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
 import SearchPanel from '../components/SearchPanel';
 
@@ -47,6 +47,29 @@ export default function Home() {
     localStorage.setItem('fontSize', newSize.toString());
   };
 
+  // 处理右键点击事件的函数
+  const handleContextMenu = useCallback((event) => {
+    // 阻止默认的右键菜单
+    event.preventDefault();
+    // 退回到上一句 (确保不会小于 0)
+    setCurrentIndex(prevIndex => Math.max(0, prevIndex - 1));
+  }, [setCurrentIndex]);
+
+  // === 移动到这里：添加右键返回上一句的监听器 ===
+  useEffect(() => {
+    // 只在客户端执行
+    if (typeof window !== 'undefined') {
+      document.addEventListener('contextmenu', handleContextMenu);
+    }
+    // 组件卸载时移除监听器
+    return () => {
+      if (typeof window !== 'undefined') {
+        document.removeEventListener('contextmenu', handleContextMenu);
+      }
+    };
+  }, [handleContextMenu]);
+  // =============================================
+
   // 初始化客户端检测和加载 localStorage 数据
   useEffect(() => {
     setIsClient(true);
@@ -57,7 +80,7 @@ export default function Home() {
       setFontSize(parseInt(savedFontSize));
     }
     // ========================
-
+    
     // 检测深色模式
     const darkModeMedia = window.matchMedia('(prefers-color-scheme: dark)');
     if (darkModeMedia.matches) {
@@ -1169,7 +1192,7 @@ export default function Home() {
         clearTimeout(timer);
       };
     }
-  }, [showCelebration, setShowCelebration, setIsReading]); // 添加所有使用的状态更新函数到依赖数组中
+  }, [showCelebration, setShowCelebration, setIsReading]);
 
   // 显示庆祝动画
   if (showCelebration && isClient) { // 确保只在客户端渲染庆祝动画
@@ -2213,8 +2236,8 @@ export default function Home() {
               
               <div style={{
                 fontSize: '17px',
+                fontWeight: '600',
                 color: isDark ? '#f5f5f7' : '#1d1d1f',
-                fontWeight: '500',
                 minWidth: '70px',
                 textAlign: 'center'
               }}>
