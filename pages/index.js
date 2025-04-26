@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
-import SearchPanel from '../components/SearchPanel';
+import SearchModal from '../components/SearchModal'; 
 
 // 辅助函数：将文本切分成句子（改进版，更健壮）
 const splitIntoSentences = (text) => {
@@ -47,7 +47,7 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState([]); // New state for search results
   const [isSearching, setIsSearching] = useState(false); // New state for search loading
   const [error, setError] = useState(null); // New state for search error
-  const [showSearchPanel, setShowSearchPanel] = useState(false); // 新增：控制搜索面板的状态
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); // 新增：控制搜索模态框的状态
 
   // 字体大小调整函数
   const adjustFontSize = (delta) => {
@@ -2767,12 +2767,6 @@ export default function Home() {
               >
                 {isDark ? '浅色' : '深色'}
               </button>
-              <button
-                onClick={() => setShowSearchPanel(!showSearchPanel)}
-                style={styles.modeButton}
-              >
-                搜索
-              </button>
             </div>
           </div>
 
@@ -3010,98 +3004,19 @@ export default function Home() {
         </div>
       </div> );
       
-      {/* 搜索面板 */}
-      {showSearchPanel && (
-        <div className="settings-panel" style={{...styles.settingsPanel, zIndex: 999}}> 
-          <div style={styles.settingsHeader}>
-            <div style={styles.settingsTitle}>搜索文件</div>
-            <button onClick={() => setShowSearchPanel(false)} style={styles.closeButton}>×</button>
-          </div>
-          
-          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            {/* Search Input and Button */}
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="输入搜索关键词..."
-                style={{ 
-                  flexGrow: 1, 
-                  padding: '8px 12px', 
-                  borderRadius: '8px', 
-                  border: isDark ? '1px solid #3a3a3c' : '1px solid #dcdcdc',
-                  backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
-                  color: isDark ? '#f5f5f7' : '#1d1d1f'
-                }}
-              />
-              <button 
-                onClick={handleSearch} 
-                disabled={isSearching}
-                style={{ 
-                  padding: '8px 15px', 
-                  borderRadius: '8px',
-                  border: 'none',
-                  backgroundColor: isDark ? '#0a84ff' : '#007aff',
-                  color: 'white',
-                  cursor: 'pointer',
-                  opacity: isSearching ? 0.6 : 1
-                }}
-              >
-                {isSearching ? '搜索中...' : '搜索'}
-              </button>
-            </div>
-            
-            {/* Loading Indicator */}
-            {isSearching && <div style={{ textAlign: 'center', color: isDark ? '#8e8e93' : '#8e8e93' }}>正在加载搜索结果...</div>}
-            
-            {/* Error Display */}
-            {error && <div style={{ color: '#ff3b30', backgroundColor: isDark ? 'rgba(255, 59, 48, 0.2)' : 'rgba(255, 59, 48, 0.1)', padding: '10px', borderRadius: '8px' }}>错误: {error}</div>}
-            
-            {/* Search Results */}
-            {!isSearching && searchResults.length > 0 && (
-              <div style={{ marginTop: '15px' }}>
-                <h3 style={{ marginBottom: '10px', fontSize: '16px', color: isDark ? '#f5f5f7' : '#1d1d1f' }}>搜索结果:</h3>
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0, maxHeight: '300px', overflowY: 'auto' }}>
-                  {searchResults.map((result, index) => (
-                    <li key={index} style={{
-                      marginBottom: '10px',
-                      padding: '10px',
-                      backgroundColor: isDark ? '#1c1c1e' : '#f2f2f7',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      color: isDark ? '#e0e0e0' : '#333333'
-                    }}>
-                      <div><strong>文档:</strong> {result.doc_id}</div>
-                      {/* 新增：显示匹配的句子列表 */}
-                      {result.sentences && result.sentences.length > 0 && (
-                        <div style={{
-                          marginTop: '8px',
-                          paddingLeft: '10px',
-                          borderLeft: `3px solid ${isDark ? '#0a84ff' : '#007aff'}`, // 使用主题颜色
-                          fontSize: '13px',
-                          color: isDark ? '#b0b0b0' : '#555555' // 使用主题颜色
-                        }}>
-                          {result.sentences.map((sentence, sIndex) => (
-                            // 使用 <p> 标签展示每个句子，允许换行
-                            <p key={sIndex} style={{ marginBottom: '5px', wordBreak: 'break-word' }}>
-                              {/* 可以考虑后续添加高亮关键词的功能 */}
-                              {sentence}
-                            </p>
-                          ))}
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            
-            {!isSearching && searchResults.length === 0 && searchQuery && !error && (
-              <div style={{ textAlign: 'center', color: isDark ? '#8e8e93' : '#8e8e93', marginTop: '15px' }}>没有找到匹配的结果。</div>
-            )}
-          </div>
-        </div>
+      {/* 搜索模态框 */}
+      {isSearchModalOpen && (
+        <SearchModal
+          isOpen={isSearchModalOpen}
+          onClose={() => setIsSearchModalOpen(false)}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          handleSearch={handleSearch}
+          searchResults={searchResults}
+          isSearching={isSearching}
+          error={error}
+          isDark={isDark}
+        />
       )}
       
       {/* 笔记本模态框 */}
@@ -3298,9 +3213,8 @@ export default function Home() {
             backgroundColor: isDark ? '#2c2c2e' : '#f0f0f0',
             border: 'none',
             borderRadius: '8px',
-            cursor: 'pointer',
-            color: isDark ? '#ffffff' : '#000000',
             fontSize: '14px',
+            color: isDark ? '#ffffff' : '#000000',
             fontWeight: '500',
             transition: 'background-color 0.2s ease' // 添加过渡效果
           }}
@@ -3309,6 +3223,7 @@ export default function Home() {
         >
           A-
         </button>
+        
         <div style={{
           minWidth: '40px', // 保证宽度
           textAlign: 'center', // 居中显示
@@ -3317,6 +3232,7 @@ export default function Home() {
         }}>
           {fontSize}px
         </div>
+        
         <button
           onClick={() => adjustFontSize(4)}
           style={{
@@ -3324,9 +3240,8 @@ export default function Home() {
             backgroundColor: isDark ? '#2c2c2e' : '#f0f0f0',
             border: 'none',
             borderRadius: '8px',
-            cursor: 'pointer',
-            color: isDark ? '#ffffff' : '#000000',
             fontSize: '14px',
+            color: isDark ? '#ffffff' : '#000000',
             fontWeight: '500',
             transition: 'background-color 0.2s ease' // 添加过渡效果
           }}
@@ -3335,7 +3250,26 @@ export default function Home() {
         >
           A+
         </button>
+        
+        {/* 搜索按钮 */}
+        <button
+          onClick={() => setIsSearchModalOpen(true)}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: isDark ? '#2c2c2e' : '#f0f0f0',
+            border: 'none',
+            borderRadius: '8px',
+            fontSize: '14px',
+            color: isDark ? '#ffffff' : '#000000',
+            fontWeight: '500',
+            transition: 'background-color 0.2s ease' // 添加过渡效果
+          }}
+          onMouseOver={(e) => { e.currentTarget.style.backgroundColor = isDark ? '#3a3a3c' : '#e0e0e0' }} // 悬停效果
+          onMouseOut={(e) => { e.currentTarget.style.backgroundColor = isDark ? '#2c2c2e' : '#f0f0f0' }} // 移出效果
+        >
+          🔍
+        </button>
       </div>
     </div>
   );
-} 
+}
