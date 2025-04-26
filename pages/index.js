@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
+import SearchPanel from '../components/SearchPanel';
 
 export default function Home() {
   // 添加客户端渲染检测状态
@@ -34,6 +35,7 @@ export default function Home() {
   const [lastGoalSetDate, setLastGoalSetDate] = useState(null); // 新增：记录上次设置阅读目标的日期
   const [todayCompletedSentences, setTodayCompletedSentences] = useState(0); // 新增：记录今日已阅读的句子数
   const [goalCompleted, setGoalCompleted] = useState(false); // 新增：记录今日阅读目标是否已完成
+  const [showSearch, setShowSearch] = useState(false);
 
   // 初始化客户端检测
   useEffect(() => {
@@ -917,7 +919,33 @@ export default function Home() {
     toggleMenu();
   };
 
-  // 新增：导出数据功能
+  // 处理搜索结果选择
+  const handleSearchResult = (result) => {
+    // 如果没有结果，直接返回
+    if (!result) return;
+    
+    // 获取文件名
+    const textName = result.path.split('/').pop();
+    
+    // 设置文本内容
+    setText(result.content);
+    setFormattedText(formatText(result.content));
+    
+    // 跳转到匹配位置
+    if (result.context && result.context.match) {
+      setCurrentIndex(result.content.indexOf(result.context.match));
+    }
+    
+    // 开始阅读模式
+    setIsReading(true);
+    
+    // 关闭搜索面板
+    setShowSearch(false);
+    
+    // 保存文本
+    saveText(textName, result.content);
+  };
+
   const exportData = () => {
     try {
       // 收集所有需要保存的数据
@@ -958,7 +986,7 @@ export default function Home() {
     }
   };
   
-  // 新增：导入数据功能
+  // 导入数据功能
   const importData = (event) => {
     try {
       const file = event.target.files[0];
@@ -1907,102 +1935,6 @@ export default function Home() {
             </div>
           </div>
 
-          {/* 新增：数据同步功能 */}
-          <div style={{
-            backgroundColor: isDark ? 'rgba(60, 60, 60, 0.5)' : 'rgba(240, 240, 240, 0.5)',
-            borderRadius: '12px',
-            padding: '16px',
-            marginBottom: '24px'
-          }}>
-            <div style={{
-              fontSize: '15px',
-              fontWeight: '600',
-              marginBottom: '12px',
-              color: isDark ? '#f5f5f7' : '#1d1d1f',
-              textAlign: 'center'
-            }}>
-              跨设备数据同步
-            </div>
-            
-            <div style={{
-              fontSize: '13px',
-              color: isDark ? '#98989d' : '#8e8e93',
-              marginBottom: '16px',
-              textAlign: 'center'
-            }}>
-              导出您的数据，然后在其他设备上导入，实现数据同步
-            </div>
-            
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '12px'
-            }}>
-              <button
-                onClick={exportData}
-                style={{
-                  ...styles.button,
-                  backgroundColor: isDark ? '#2c2c2e' : '#e5e5ea',
-                  color: isDark ? '#f5f5f7' : '#1d1d1f',
-                  fontWeight: '500',
-                  fontSize: '14px',
-                  padding: '10px 16px'
-                }}
-              >
-                导出数据备份
-              </button>
-              
-              {/* 添加查看笔记本按钮 */}
-              <button
-                onClick={() => setShowNotebook(true)}
-                style={{
-                  ...styles.button,
-                  backgroundColor: isDark ? '#2c2c2e' : '#e5e5ea',
-                  color: isDark ? '#f5f5f7' : '#1d1d1f',
-                  fontWeight: '500',
-                  fontSize: '14px',
-                  padding: '10px 16px',
-                  marginTop: '10px'
-                }}
-              >
-                查看收藏的句子
-              </button>
-              
-              <div style={{
-                position: 'relative',
-                overflow: 'hidden'
-              }}>
-                <button
-                  style={{
-                    ...styles.button,
-                    backgroundColor: isDark ? '#2c2c2e' : '#e5e5ea',
-                    color: isDark ? '#f5f5f7' : '#1d1d1f',
-                    fontWeight: '500',
-                    fontSize: '14px',
-                    padding: '10px 16px',
-                    width: '100%'
-                  }}
-                >
-                  导入数据备份
-                </button>
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={importData}
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    opacity: 0,
-                    width: '100%',
-                    height: '100%',
-                    cursor: 'pointer'
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
           {/* 当前会话阅读进度 - 简化设计 */}
           <div style={styles.goalProgressContainer}>
             <div style={styles.goalProgressTitle}>
@@ -2307,7 +2239,7 @@ export default function Home() {
                 fontWeight: '600',
                 color: isDark ? '#f5f5f7' : '#1d1d1f',
               }}>
-                阅读进度: {calculateSessionProgress()}/{readingGoal - todayCompletedSentences}句 (总进度: {calculateTotalProgress()}/{readingGoal}句, {Math.round((calculateTotalProgress() / readingGoal) * 100)}%)
+                阅读进度: {calculateSessionProgress()} / {readingGoal - todayCompletedSentences} 句 (总进度: {calculateTotalProgress()} / {readingGoal} 句, {Math.round((calculateTotalProgress() / readingGoal) * 100)}%)
               </div>
               
               <div style={{
@@ -3100,6 +3032,102 @@ export default function Home() {
               })}
             </>
           )}
+        </div>
+      )}
+      
+      {/* 顶部操作按钮 */}
+      <div style={{
+        position: 'fixed',
+        top: '20px',
+        right: '20px',
+        display: 'flex',
+        gap: '10px',
+        zIndex: 100
+      }}>
+        {/* 搜索按钮 */}
+        <button
+          onClick={() => setShowSearch(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '8px 16px',
+            backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)',
+            color: isDark ? '#ffffff' : '#000000'
+          }}
+        >
+          <span style={{ marginRight: '8px' }}>🔍</span>
+          搜索
+        </button>
+
+        {/* 设置按钮 */}
+        <button
+          onClick={toggleMenu}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            padding: '8px 16px',
+            backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: 'pointer',
+            boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)',
+            color: isDark ? '#ffffff' : '#000000'
+          }}
+        >
+          <span style={{ marginRight: '8px' }}>⚙️</span>
+          设置
+        </button>
+      </div>
+
+      {/* 搜索面板 */}
+      {showSearch && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+          zIndex: 1000,
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '16px',
+            borderBottom: `1px solid ${isDark ? '#333' : '#ddd'}`
+          }}>
+            <h2 style={{
+              margin: 0,
+              color: isDark ? '#fff' : '#000'
+            }}>
+              搜索内容
+            </h2>
+            <button
+              onClick={() => setShowSearch(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: isDark ? '#fff' : '#000',
+                cursor: 'pointer',
+                fontSize: '16px'
+              }}
+            >
+              关闭
+            </button>
+          </div>
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <SearchPanel
+              isDark={isDark}
+              onSelect={handleSearchResult}
+            />
+          </div>
         </div>
       )}
     </div>
