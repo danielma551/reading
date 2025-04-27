@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
 import SearchModal from '../components/SearchModal'; 
 
@@ -48,6 +48,8 @@ export default function Home() {
   const [isSearching, setIsSearching] = useState(false); // New state for search loading
   const [error, setError] = useState(null); // New state for search error
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); // 新增：控制搜索模态框的状态
+  const fileInputRef = useRef(null); // Hidden file input ref
+  const [editingCoverIndex, setEditingCoverIndex] = useState(null); // Index of text being edited for cover image
 
   // 字体大小调整函数
   const adjustFontSize = (delta) => {
@@ -1289,7 +1291,7 @@ export default function Home() {
             margin: '0 auto 20px auto',
             height: '8px',
             backgroundColor: isDark ? 'rgba(60, 60, 60, 0.6)' : 'rgba(220, 220, 220, 0.6)',
-            borderRadius: '4px',
+            borderRadius: '12px',
             overflow: 'hidden',
             position: 'relative'
           }}>
@@ -1300,7 +1302,7 @@ export default function Home() {
               height: '100%',
               width: '100%',
               backgroundColor: highlightColor,
-              borderRadius: '4px'
+              borderRadius: '12px'
             }}/>
           </div>
           
@@ -1528,7 +1530,7 @@ export default function Home() {
       textAlign: 'center'
     },
     // 苹果风格的库页面样式
-    libraryContainer: {
+    libraryContainer: { // Keep container padding
       minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column',
@@ -3068,7 +3070,7 @@ export default function Home() {
                         >
                           删除
                         </button>
-                    </div>
+                      </div>
                   </div>
                 ))}
               </div>
@@ -3371,3 +3373,31 @@ export default function Home() {
     </div>
   );
 }
+
+const handleFileSelected = (event) => {
+  const file = event.target.files[0];
+  console.log('[handleFileSelected] File selected:', file);
+  if (file && editingCoverIndex !== null) {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      console.log('[handleFileSelected] File read success. Updating state for index:', editingCoverIndex);
+      const updatedTexts = savedTexts.map((text, index) => {
+        if (index === editingCoverIndex) {
+          // Ensure compatibility with existing structure, assuming 'id' exists
+          return { ...text, coverImage: reader.result };
+        }
+        return text;
+      });
+      setSavedTexts(updatedTexts);
+      setEditingCoverIndex(null); // Reset editing index after update
+    };
+    reader.onerror = (error) => {
+      console.error('[handleFileSelected] Error reading file:', error);
+      setEditingCoverIndex(null); // Also reset on error
+    };
+    reader.readAsDataURL(file);
+  } else {
+    console.log('[handleFileSelected] No file selected or index invalid. Resetting index.');
+    setEditingCoverIndex(null); // Reset if no file selected or index is null
+  }
+};
