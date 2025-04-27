@@ -3177,7 +3177,16 @@ export default function Home() {
                     {/* Action Buttons */} 
                     <div style={styles.gridItemActions}>
                         <button
-                          onClick={(e) => { e.stopPropagation(); readText(index); }} // Prevent item click when clicking button
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            loadSavedText(index);
+                            // 加载文本后切换到阅读模式
+                            setTimeout(() => {
+                              if (!isReading) {
+                                toggleReadingMode();
+                              }
+                            }, 100);
+                          }}
                           style={styles.gridActionButton(isDark)}
                         >
                           阅读
