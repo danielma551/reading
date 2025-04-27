@@ -42,6 +42,13 @@ const SearchModal = ({
     }
   };
 
+  // 处理跳转到句子
+  const handleJumpToSentence = (position) => {
+    if (typeof onJumpToSentence === 'function') {
+      onJumpToSentence(position);
+    }
+  };
+
   return (
     // 蒙层/遮罩层
     <div
@@ -165,20 +172,57 @@ const SearchModal = ({
                       color: isDark ? '#c0c0c0' : '#444444',
                     }}>
                       {result.sentences.map((sentence, sIndex) => (
-                        <p key={sIndex} style={{ margin: '4px 0', wordBreak: 'break-word', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <p key={sIndex} style={{ 
+                          margin: '4px 0', 
+                          wordBreak: 'break-word', 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'flex-start',
+                          padding: '8px',
+                          borderRadius: '4px',
+                          backgroundColor: isDark ? 'rgba(10, 132, 255, 0.1)' : 'rgba(0, 122, 255, 0.05)',
+                          cursor: 'pointer',
+                          transition: 'background-color 0.2s ease'
+                        }}
+                        onClick={() => handleJumpToSentence(sentence.position)}
+                        onMouseOver={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(10, 132, 255, 0.2)' : 'rgba(0, 122, 255, 0.1)' }}
+                        onMouseOut={(e) => { e.currentTarget.style.backgroundColor = isDark ? 'rgba(10, 132, 255, 0.1)' : 'rgba(0, 122, 255, 0.05)' }}
+                        >
                           <span>{sentence.text}</span>
-                          <span style={{
-                            padding: '2px 6px',
-                            borderRadius: '4px',
-                            marginLeft: '10px',
-                            backgroundColor: isDark ? 'rgba(10, 132, 255, 0.2)' : 'rgba(0, 122, 255, 0.1)',
-                            color: isDark ? '#0a84ff' : '#007aff',
-                            fontSize: '12px',
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
                           }}>
-                            第 {sentence.position + 1} 句
-                          </span>
+                            <span style={{
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              backgroundColor: isDark ? 'rgba(10, 132, 255, 0.2)' : 'rgba(0, 122, 255, 0.1)',
+                              color: isDark ? '#0a84ff' : '#007aff',
+                              fontSize: '12px',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0
+                            }}>
+                              第 {sentence.position + 1} 句
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleJumpToSentence(sentence.position);
+                              }}
+                              style={{
+                                border: 'none',
+                                backgroundColor: isDark ? '#0a84ff' : '#007aff',
+                                color: 'white',
+                                borderRadius: '4px',
+                                padding: '2px 6px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              跳转
+                            </button>
+                          </div>
                         </p>
                       ))}
                     </div>

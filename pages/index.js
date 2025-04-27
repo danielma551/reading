@@ -6,8 +6,16 @@ import SearchModal from '../components/SearchModal';
 const splitIntoSentences = (text) => {
   if (!text) return [];
   // 使用更可靠的正则表达式匹配中文和英文的句子结束符，并保留结束符
-  const sentences = text.match(/[^.?!。？！；]+[.?!。？！；]?/g);
-  return sentences ? sentences.map(s => s.trim()).filter(s => s) : [];
+  return text
+    .split(/([，。？！；])/g)
+    .reduce((acc, curr, i, arr) => {
+      if (i % 2 === 0) {
+        const nextItem = arr[i + 1];
+        return acc.concat(curr + (nextItem || ''));
+      }
+      return acc;
+    }, [])
+    .filter(s => s.trim());
 };
 
 export default function Home() {
@@ -843,17 +851,8 @@ export default function Home() {
         setTimeout(() => {
           const chunk = chunks[processedChunks];
           
-          // 处理当前块
-          const chunkSentences = chunk
-            .split(/([，。？；])/g)
-            .reduce((acc, curr, i, arr) => {
-              if (i % 2 === 0) {
-                const nextItem = arr[i + 1];
-                return acc.concat(curr + (nextItem || ''));
-              }
-              return acc;
-            }, [])
-            .filter(s => s.trim());
+          // 处理当前块，使用统一的 splitIntoSentences 函数
+          const chunkSentences = splitIntoSentences(chunk);
           
           // 合并结果
           resultSentences = resultSentences.concat(chunkSentences);
@@ -874,16 +873,8 @@ export default function Home() {
       // 对于普通大小的文本，使用setTimeout避免UI阻塞
       setTimeout(() => {
         try {
-          const sentences = inputText
-            .split(/([，。？；])/g)
-            .reduce((acc, curr, i, arr) => {
-              if (i % 2 === 0) {
-                const nextItem = arr[i + 1];
-                return acc.concat(curr + (nextItem || ''));
-              }
-              return acc;
-            }, [])
-            .filter(s => s.trim());
+          // 使用统一的 splitIntoSentences 函数
+          const sentences = splitIntoSentences(inputText);
           
           setFormattedText(sentences);
         } catch (error) {
@@ -2174,6 +2165,24 @@ export default function Home() {
   const handleJumpToSentence = (index) => {
     if (index >= 0 && index < formattedText.length) {
       setCurrentIndex(index);
+      
+      // 添加跳转后的视觉反馈
+      const sentenceElement = document.getElementById(`sentence-${index}`);
+      if (sentenceElement) {
+        // 滚动到句子位置
+        sentenceElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // 添加高亮效果
+        sentenceElement.style.backgroundColor = isDark ? 'rgba(10, 132, 255, 0.2)' : 'rgba(0, 122, 255, 0.1)';
+        setTimeout(() => {
+          sentenceElement.style.backgroundColor = 'transparent';
+          sentenceElement.style.transition = 'background-color 1s ease';
+        }, 1500);
+      }
+    } else {
+      // 如果索引超出范围，显示提示
+      console.warn(`跳转失败：索引 ${index} 超出文本范围 (0-${formattedText.length - 1})`);
+      alert(`无法跳转到第 ${index + 1} 句，该句子不在当前文本中。`);
     }
     setIsSearchModalOpen(false); // 关闭搜索模态框
   };
@@ -2875,7 +2884,13 @@ export default function Home() {
           </div>
           
           <div style={styles.textContent}>
-            {formattedText[currentIndex]}
+            <div id={`sentence-${currentIndex}`} style={{
+              transition: 'background-color 0.5s ease',
+              padding: '8px',
+              borderRadius: '4px'
+            }}>
+              {formattedText[currentIndex]}
+            </div>
           </div>
           
           {/* 移动设备操作提示，3秒后淡出 */}
