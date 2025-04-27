@@ -3192,7 +3192,7 @@ export default function Home() {
                           阅读
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); deleteText(index); }} // Prevent item click
+                          onClick={(e) => { e.stopPropagation(); deleteSavedText(e, index); }} // Prevent item click
                           style={{...styles.gridActionButton(isDark), ...styles.deleteButton(isDark)}}
                         >
                           删除
