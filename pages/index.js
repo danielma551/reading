@@ -3043,9 +3043,65 @@ export default function Home() {
               <div style={styles.gridContainer}>
                 {savedTexts.map((item, index) => (
                   <div key={index} style={styles.gridItem(isDark)} onClick={() => loadSavedText(index)}> 
-                    {/* Placeholder for Cover Image */}
-                    <div style={styles.gridItemImagePlaceholder(isDark)}></div>
-                    
+                    {/* === START: Cover Image Area Modification === */}
+                    {/* New container div for image/placeholder, handles click */}
+                    <div
+                      style={{ // Style for the container based on original placeholder aspect ratio
+                        width: '100%',
+                        paddingTop: '140%', // Aspect ratio from original placeholder style
+                        position: 'relative', // Needed for absolute positioning of children
+                        overflow: 'hidden', // Hide overflow
+                        cursor: 'pointer', // Indicate clickability
+                        backgroundColor: isDark ? '#3a3a3c' : '#e5e5ea', // Background visible if image fails or during loading
+                        borderRadius: '8px 8px 0 0', // Apply top border radius here
+                        marginBottom: '0',
+                      }}
+                      onClick={(e) => {
+                          // console.log(`DEBUG: Cover container clicked for index ${index}!`); // Keep debug log temporarily
+                          e.stopPropagation(); // VERY IMPORTANT: Prevent card's loadSavedText click
+                          handleCoverImageClick(index, e); // Trigger the upload flow
+                      }}
+                    >
+                      {item.coverImage ? (
+                        // Display the actual image if it exists
+                        <img
+                          src={item.coverImage}
+                          alt={item.name || 'Cover'}
+                          style={{ // Style to make image fill the container
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover', // Cover the area, crop if needed
+                            borderRadius: 'inherit', // Inherit border radius from parent
+                          }}
+                          onError={(e) => { // Optional: handle image load error
+                            console.error("Error loading cover image:", item.coverImage);
+                            // Optionally clear the broken image data or show placeholder
+                            // e.target.style.display = 'none'; // Hide broken image icon
+                          }}
+                        />
+                      ) : (
+                        // Display the placeholder content (e.g., a plus sign) if no image
+                        <div style={{ // Style for the placeholder content itself
+                             position: 'absolute',
+                             top: 0,
+                             left: 0,
+                             width: '100%',
+                             height: '100%',
+                             display: 'flex',
+                             alignItems: 'center',
+                             justifyContent: 'center',
+                             // Background is handled by the parent now
+                             borderRadius: 'inherit' // Inherit border radius
+                         }}>
+                            <span style={{ fontSize: '30px', color: isDark ? '#8e8e93' : '#6c757d', fontWeight: '300' }}>+</span>
+                        </div>
+                      )}
+                    </div>
+                    {/* === END: Cover Image Area Modification === */}
+
                     {/* Text Name & Meta */}
                     <div style={styles.gridItemContent}>
                         <span style={styles.gridItemTitle(isDark)} title={item.name}>{item.name}</span>
