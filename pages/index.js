@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
 import SearchModal from '../components/SearchModal'; 
 
@@ -49,6 +49,7 @@ export default function Home() {
   const [error, setError] = useState(null); // New state for search error
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); // 新增：控制搜索模态框的状态
   const fileInputRef = useRef(null); // Hidden file input ref
+  const coverImageInputRef = useRef(null); // Hidden cover image input ref
   const [editingCoverIndex, setEditingCoverIndex] = useState(null); // Index of text being edited for cover image
 
   // 字体大小调整函数
@@ -2108,6 +2109,46 @@ export default function Home() {
     }
   };
 
+  const handleFileSelected = (event) => {
+    const file = event.target.files[0];
+    console.log('[handleFileSelected] File selected:', file);
+    if (file && editingCoverIndex !== null) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        console.log('[handleFileSelected] File read success. Updating state for index:', editingCoverIndex);
+        const updatedTexts = savedTexts.map((text, index) => {
+          if (index === editingCoverIndex) {
+            // Ensure compatibility with existing structure, assuming 'id' exists
+            return { ...text, coverImage: reader.result };
+          }
+          return text;
+        });
+        setSavedTexts(updatedTexts);
+        setEditingCoverIndex(null); // Reset editing index after update
+      };
+      reader.onerror = (error) => {
+        console.error('[handleFileSelected] Error reading file:', error);
+        setEditingCoverIndex(null); // Also reset on error
+      };
+      reader.readAsDataURL(file);
+    } else {
+      console.log('[handleFileSelected] No file selected or index invalid. Resetting index.');
+      setEditingCoverIndex(null); // Reset if no file selected or index is null
+    }
+  };
+
+  const handleCoverImageClick = (index, e) => {
+    // console.log(`[handleCoverImageClick] Triggered for index: ${index}`); // Debug log
+    e.stopPropagation(); // Ensure we still stop propagation
+    setEditingCoverIndex(index); // Set which card's cover is being edited
+    // Trigger the hidden file input click
+    if (coverImageInputRef.current) {
+      // Reset value to allow selecting the same file again
+      coverImageInputRef.current.value = null;
+      coverImageInputRef.current.click();
+    }
+  };
+
   if (isReading && formattedText.length > 0) {
     // 苹果风格的阅读模式
     return (
@@ -3429,31 +3470,3 @@ export default function Home() {
     </div>
   );
 }
-
-const handleFileSelected = (event) => {
-  const file = event.target.files[0];
-  console.log('[handleFileSelected] File selected:', file);
-  if (file && editingCoverIndex !== null) {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      console.log('[handleFileSelected] File read success. Updating state for index:', editingCoverIndex);
-      const updatedTexts = savedTexts.map((text, index) => {
-        if (index === editingCoverIndex) {
-          // Ensure compatibility with existing structure, assuming 'id' exists
-          return { ...text, coverImage: reader.result };
-        }
-        return text;
-      });
-      setSavedTexts(updatedTexts);
-      setEditingCoverIndex(null); // Reset editing index after update
-    };
-    reader.onerror = (error) => {
-      console.error('[handleFileSelected] Error reading file:', error);
-      setEditingCoverIndex(null); // Also reset on error
-    };
-    reader.readAsDataURL(file);
-  } else {
-    console.log('[handleFileSelected] No file selected or index invalid. Resetting index.');
-    setEditingCoverIndex(null); // Reset if no file selected or index is null
-  }
-};
