@@ -1,5 +1,5 @@
 // components/SearchModal.js
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const SearchModal = ({
   isOpen,
@@ -12,6 +12,20 @@ const SearchModal = ({
   error,
   isDark, // 接收 isDark 用于主题适配
 }) => {
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      // Use setTimeout to allow the component to render before starting the animation
+      const timer = setTimeout(() => setIsAnimating(true), 10); // Small delay for transition
+      return () => clearTimeout(timer);
+    } else {
+      setIsAnimating(false); // Reset on close
+    }
+  }, [isOpen]);
+
+  if (!isOpen && !isAnimating) return null; // Keep component mounted during closing animation if needed, but for now, instant close
+  // Let's stick to instant close for simplicity first.
   if (!isOpen) return null;
 
   // 阻止事件冒泡，防止点击模态框内容导致关闭
@@ -40,6 +54,8 @@ const SearchModal = ({
         justifyContent: 'center',
         alignItems: 'center',
         zIndex: 1000, // 确保在顶层
+        opacity: isAnimating ? 1 : 0, // Control opacity via state
+        transition: 'opacity 0.25s ease-out', // Add transition for overlay
       }}
       onClick={onClose} // 点击蒙层关闭
     >
@@ -58,6 +74,9 @@ const SearchModal = ({
           display: 'flex',
           flexDirection: 'column',
           position: 'relative', // 为了关闭按钮定位
+          opacity: isAnimating ? 1 : 0, // Control opacity via state
+          transform: isAnimating ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(10px)', // Control transform via state
+          transition: 'opacity 0.25s ease-out, transform 0.25s ease-out', // Add transition for content
         }}
         onClick={handleContentClick} // 阻止点击内容关闭
       >
