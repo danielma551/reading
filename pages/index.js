@@ -52,6 +52,14 @@ export default function Home() {
   const coverImageInputRef = useRef(null); // Hidden cover image input ref
   const [editingCoverIndex, setEditingCoverIndex] = useState(null); // Index of text being edited for cover image
 
+  // 确保文件选择器引用正确
+  const handleAddImageClick = () => {
+    console.log('Add image button clicked');
+    if (coverImageInputRef.current) {
+      coverImageInputRef.current.click();
+    }
+  };
+
   // 字体大小调整函数
   const adjustFontSize = (delta) => {
     // 计算新字体大小，限制在 12px 到 72px 之间
@@ -2124,6 +2132,7 @@ export default function Home() {
           return text;
         });
         setSavedTexts(updatedTexts);
+        localStorage.setItem('savedTexts', JSON.stringify(updatedTexts)); // 持久化到 localStorage
         setEditingCoverIndex(null); // Reset editing index after update
       };
       reader.onerror = (error) => {
@@ -2138,14 +2147,17 @@ export default function Home() {
   };
 
   const handleCoverImageClick = (index, e) => {
-    // console.log(`[handleCoverImageClick] Triggered for index: ${index}`); // Debug log
+    console.log(`[handleCoverImageClick] Triggered for index: ${index}`);
     e.stopPropagation(); // Ensure we still stop propagation
     setEditingCoverIndex(index); // Set which card's cover is being edited
     // Trigger the hidden file input click
     if (coverImageInputRef.current) {
       // Reset value to allow selecting the same file again
       coverImageInputRef.current.value = null;
+      console.log('[handleCoverImageClick] Clicking hidden cover image input');
       coverImageInputRef.current.click();
+    } else {
+      console.error('[handleCoverImageClick] coverImageInputRef is null or not mounted.');
     }
   };
 
@@ -2884,6 +2896,15 @@ export default function Home() {
             right: 0
           }}
         />
+        
+        {/* 隐藏的文件输入框，用于上传封面图片 */}
+        <input 
+          type="file"
+          ref={coverImageInputRef}
+          style={{ display: 'none' }}
+          onChange={handleFileSelected}
+          accept="image/*"
+        />
       </div>
     );
   }
@@ -3098,7 +3119,7 @@ export default function Home() {
                         marginBottom: '0',
                       }}
                       onClick={(e) => {
-                          // console.log(`DEBUG: Cover container clicked for index ${index}!`); // Keep debug log temporarily
+                          console.log(`DEBUG: Cover container clicked for index ${index}!`); // Keep debug log temporarily
                           e.stopPropagation(); // VERY IMPORTANT: Prevent card's loadSavedText click
                           handleCoverImageClick(index, e); // Trigger the upload flow
                       }}
@@ -3467,6 +3488,15 @@ export default function Home() {
           🔍
         </button>
       </div>
+      
+      {/* 隐藏的文件输入框，用于上传封面图片 */}
+      <input 
+        type="file"
+        ref={coverImageInputRef}
+        style={{ display: 'none' }}
+        onChange={handleFileSelected}
+        accept="image/*"
+      />
     </div>
   );
 }
