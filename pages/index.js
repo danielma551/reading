@@ -1315,7 +1315,7 @@ export default function Home() {
           
           <div style={{
             fontSize: '14px',
-            color: isDark ? '#86868b' : '#8e8e93',
+            color: isDark ? '#98989d' : '#8e8e93',
             marginBottom: '20px'
           }}>
             坚持阅读，每天进步！
@@ -1821,6 +1821,110 @@ export default function Home() {
       maxWidth: '300px',
       margin: '0 auto',
     },
+    // --- New Styles for Grid Layout --- 
+    savedFilesContainer: { // Keep container padding
+      marginTop: '30px',
+      padding: '0 20px',
+    },
+    subHeader: { // Keep subHeader style
+      fontSize: '24px', // Make header larger
+      fontWeight: 'bold',
+      marginBottom: '25px', // More space below header
+      color: isDark ? '#f5f5f7' : '#1d1d1f',
+    },
+    gridContainer: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '25px', // Space between grid items
+      justifyContent: 'flex-start', // Align items to the start
+    },
+    gridItem: (isDark) => ({
+      backgroundColor: isDark ? '#2c2c2e' : '#ffffff',
+      borderRadius: '12px',
+      // padding: '15px', // Padding will be applied to inner content instead
+      width: 'calc(33.333% - 17px)', // Aim for 3 columns, adjusted for 25px gap
+      minWidth: '180px', // Minimum width before wrapping
+      boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.08)',
+      display: 'flex',
+      flexDirection: 'column',
+      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+      cursor: 'pointer',
+      overflow: 'hidden', // Ensure content respects border radius
+      '&:hover': {
+        transform: 'translateY(-3px)',
+        boxShadow: isDark ? '0 6px 16px rgba(0, 0, 0, 0.4)' : '0 6px 16px rgba(0, 0, 0, 0.12)',
+      },
+    }),
+    gridItemImagePlaceholder: (isDark) => ({ // Placeholder for the book cover
+      width: '100%',
+      paddingTop: '140%', // Aspect ratio for the image area (adjust as needed)
+      backgroundColor: isDark ? '#3a3a3c' : '#e5e5ea',
+      // Removed border radius from here, applied to parent gridItem
+      marginBottom: '0', // No margin needed if padding is on content
+    }),
+    gridItemContent: {
+      flexGrow: 1, // Allow content to fill space
+      padding: '12px 15px 10px 15px', // Padding for title and meta
+    },
+    gridItemTitle: (isDark) => ({
+      fontSize: '15px', // Slightly smaller title
+      fontWeight: '600',
+      color: isDark ? '#ffffff' : '#000000',
+      marginBottom: '5px',
+      display: '-webkit-box',
+      WebkitLineClamp: 2, // Limit title to 2 lines
+      WebkitBoxOrient: 'vertical',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      minHeight: '36px', // Ensure space for two lines (adjust based on font size/line height)
+      lineHeight: '1.2',
+    }),
+    gridItemMeta: (isDark) => ({
+      fontSize: '12px',
+      color: isDark ? '#8e8e93' : '#666666',
+      display: 'flex', 
+      gap: '5px',
+      marginTop: '5px', // Reduced top margin
+    }),
+    gridItemTag: (isDark) => ({
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+      padding: '2px 6px',
+      borderRadius: '4px',
+      fontSize: '11px', // Smaller tag font
+    }),
+    gridItemActions: {
+      display: 'flex',
+      justifyContent: 'flex-end', // Align buttons to the right
+      padding: '5px 10px 10px 10px', // Padding for buttons area
+      // borderTop: `1px solid ${isDark ? '#3a3a3c' : '#e5e5ea'}`, // Optional separator
+      gap: '8px', // Space between buttons
+    },
+    gridActionButton: (isDark) => ({
+      background: 'none',
+      border: `1px solid ${isDark ? '#48484a' : '#d1d1d6'}`, // Subtle border
+      padding: '4px 10px',
+      cursor: 'pointer',
+      fontSize: '12px',
+      fontWeight: '500',
+      color: isDark ? '#c7c7cc' : '#343437',
+      borderRadius: '6px',
+      transition: 'background-color 0.2s ease, border-color 0.2s ease',
+      '&:hover': {
+        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+        borderColor: isDark ? '#5a5a5d' : '#bxbxbx',
+      }
+    }),
+    // --- End of Grid Styles --- 
+    deleteButton: (isDark) => ({
+      // Specific styles for delete button if needed (e.g., color)
+      color: isDark ? '#ff453a' : '#d12727',
+      '&:hover': {
+        // Hover styles specific to delete, inheriting from gridActionButton hover
+        backgroundColor: isDark ? 'rgba(255, 69, 58, 0.15)' : 'rgba(209, 39, 39, 0.1)',
+        borderColor: isDark ? 'rgba(255, 69, 58, 0.5)' : 'rgba(209, 39, 39, 0.5)',
+        color: isDark ? '#ff453a' : '#d12727', // Keep color on hover
+      }
+    }),
   };
 
   // 阅读时的进度条宽度
@@ -2934,45 +3038,39 @@ export default function Home() {
                 </span>
               </div>
               
-              <div style={styles.listContainer}>
-                {savedTexts.map((item, index) => {
-                  const position = lastPositions[index];
-                  const hasPosition = position !== undefined;
-                  const isSelected = selectedSavedText === index;
-                  const date = new Date(item.date);
-                  const formattedDate = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
-                  
-                  return (
-                    <div 
-                      key={index}
-                      onClick={() => loadSavedText(index)}
-                      style={{
-                        ...styles.listItem,
-                        ...(isSelected ? styles.listItemActive : {})
-                      }}
-                    >
-                      <div style={{flex: 1}}>
-                        <div style={styles.listItemTitle}>
-                          {item.name}
+              <div style={styles.gridContainer}>
+                {savedTexts.map((item, index) => (
+                  <div key={index} style={styles.gridItem(isDark)} onClick={() => loadSavedText(index)}> 
+                    {/* Placeholder for Cover Image */}
+                    <div style={styles.gridItemImagePlaceholder(isDark)}></div>
+                    
+                    {/* Text Name & Meta */}
+                    <div style={styles.gridItemContent}>
+                        <span style={styles.gridItemTitle(isDark)} title={item.name}>{item.name}</span>
+                        {/* Placeholder for Author/Tags */}
+                        <div style={styles.gridItemMeta(isDark)}>
+                            {/* Example Tag - replace later */}
+                            <span style={styles.gridItemTag(isDark)}>待分类</span> 
                         </div>
-                        <div style={styles.listItemSubtitle}>
-                          {formattedDate}
-                          {hasPosition && formattedText.length > 0 && (
-                            <span style={{marginLeft: '8px'}}>
-                              · 已读{Math.round(((position + 1) / formattedText.length) * 100)}%
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => deleteSavedText(e, index)}
-                        style={styles.iconButton}
-                      >
-                        删除
-                      </button>
                     </div>
-                  );
-                })}
+                    
+                    {/* Action Buttons */} 
+                    <div style={styles.gridItemActions}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); readText(index); }} // Prevent item click when clicking button
+                          style={styles.gridActionButton(isDark)}
+                        >
+                          阅读
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteText(index); }} // Prevent item click
+                          style={{...styles.gridActionButton(isDark), ...styles.deleteButton(isDark)}}
+                        >
+                          删除
+                        </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
