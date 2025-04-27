@@ -48,15 +48,134 @@ export default function Home() {
   const [isSearching, setIsSearching] = useState(false); // New state for search loading
   const [error, setError] = useState(null); // New state for search error
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); // 新增：控制搜索模态框的状态
+  const [searchStartIndex, setSearchStartIndex] = useState(0); // 新增：记录打开搜索时的句子索引
   const fileInputRef = useRef(null); // Hidden file input ref
   const coverImageInputRef = useRef(null); // Hidden cover image input ref
   const [editingCoverIndex, setEditingCoverIndex] = useState(null); // Index of text being edited for cover image
+
+  // === 恢复: 执行搜索的函数 ===
+  const handleSearch = () => { 
+    const query = searchQuery.trim().toLowerCase(); // 准备查询词，忽略大小写
+    if (!query) {
+      // 可以选择不提示，或者在这里设置一个 error 状态
+      setSearchResults([]);
+      setError(null);
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchResults([]); // 清空旧结果
+    setError(null); // 清空旧错误
+
+    try {
+      // 直接从 state 读取 savedTexts
+      const localResults = savedTexts
+        .map(textItem => {
+          if (!textItem || typeof textItem.content !== 'string' || typeof textItem.name !== 'string') {
+            console.warn('Skipping invalid text item in savedTexts:', textItem);
+            return null;
+          }
+
+          const contentLower = textItem.content.toLowerCase();
+          const nameLower = textItem.name.toLowerCase();
+
+          // 初步检查文档内容或名称是否包含关键词
+          if (contentLower.includes(query) || nameLower.includes(query)) {
+            // 切分文档内容为句子
+            const allSentences = splitIntoSentences(textItem.content);
+
+            // 查找匹配的句子并记录其索引位置
+            const matchingSentencesWithPositions = [];
+            
+            allSentences.forEach((sentence, index) => {
+              if (typeof sentence === 'string' && sentence.toLowerCase().includes(query)) {
+                matchingSentencesWithPositions.push({
+                  text: sentence,
+                  position: index // 记录句子在原文中的索引位置
+                });
+              }
+            });
+
+            // 如果找到了匹配的句子，则返回结果对象
+            if (matchingSentencesWithPositions.length > 0) {
+              return {
+                doc_id: textItem.name,
+                sentences: matchingSentencesWithPositions // 包含所有匹配句子及其位置的数组
+              };
+            }
+          }
+          return null; // 如果文档不匹配或没有匹配句子，返回null
+        })
+        .filter(result => result !== null); // 过滤掉所有null结果
+
+      setSearchResults(localResults); // 更新搜索结果状态
+
+      // 如果没有找到任何结果，设置提示信息
+      if (localResults.length === 0) {
+        // setError('没有在本地保存的文本中找到包含该词的句子。'); // 可以取消错误提示，让 SearchModal 显示默认消息
+      }
+
+    } catch (err) { // 捕获处理过程中的错误
+      console.error('前端搜索执行出错:', err);
+      setError(`搜索时发生错误: ${err.message}`);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false); // 结束搜索状态
+    }
+  };
+  // ============================
 
   // 确保文件选择器引用正确
   const handleAddImageClick = () => {
     console.log('Add image button clicked');
     if (coverImageInputRef.current) {
       coverImageInputRef.current.click();
+    }
+  };
+
+  // 处理封面图片文件选择
+  const handleFileSelected = (event) => {
+    const file = event.target.files[0];
+    console.log('[handleFileSelected] File selected:', file);
+    if (file && editingCoverIndex !== null) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        console.log('[handleFileSelected] File read success. Updating state for index:', editingCoverIndex);
+        const updatedTexts = savedTexts.map((text, index) => {
+          if (index === editingCoverIndex) {
+            // Ensure compatibility with existing structure, assuming 'id' exists
+            return { ...text, coverImage: reader.result };
+          }
+          return text;
+        });
+        setSavedTexts(updatedTexts);
+        localStorage.setItem('savedTexts', JSON.stringify(updatedTexts)); // 持久化到 localStorage
+        setEditingCoverIndex(null); // Reset editing index after update
+      };
+      reader.onerror = (error) => {
+        console.error('[handleFileSelected] Error reading file:', error);
+        setEditingCoverIndex(null); // Also reset on error
+      };
+      reader.readAsDataURL(file);
+    } else {
+      console.log('[handleFileSelected] No file selected or index invalid. Resetting index.');
+      setEditingCoverIndex(null); // Reset if no file selected or index is null
+    }
+  };
+
+  // 处理点击封面图片以触发文件选择
+  const handleCoverImageClick = (index, e) => {
+    console.log(`[handleCoverImageClick] Triggered for index: ${index}`);
+    e.stopPropagation(); // Ensure we still stop propagation
+    setEditingCoverIndex(index); // Set which card's cover is being edited
+    // Trigger the hidden file input click
+    if (coverImageInputRef.current) {
+      // Reset value to allow selecting the same file again
+      coverImageInputRef.current.value = null;
+      console.log('[handleCoverImageClick] Clicking hidden cover image input');
+      coverImageInputRef.current.click();
+    } else {
+      console.error('[handleCoverImageClick] coverImageInputRef is null or not mounted.');
     }
   };
 
@@ -1868,7 +1987,7 @@ export default function Home() {
     }),
     gridItemImagePlaceholder: (isDark) => ({ // Placeholder for the book cover
       width: '100%',
-      paddingTop: '140%', // Aspect ratio for the image area (adjust as needed)
+      paddingTop: '140%', // Aspect ratio from original placeholder style
       backgroundColor: isDark ? '#3a3a3c' : '#e5e5ea',
       // Removed border radius from here, applied to parent gridItem
       marginBottom: '0', // No margin needed if padding is on content
@@ -2052,117 +2171,15 @@ export default function Home() {
     return [firstSegmentProgress, secondSegmentProgress, thirdSegmentProgress];
   };
 
-  const handleSearch = () => { 
-    const query = searchQuery.trim().toLowerCase(); // 准备查询词，忽略大小写
-    if (!query) {
-      alert('请输入搜索词');
-      return;
+  const handleJumpToSentence = (index) => {
+    if (index >= 0 && index < formattedText.length) {
+      setCurrentIndex(index);
     }
-    setIsSearching(true);
-    setSearchResults([]); // 清空旧结果
-    setError(null); // 清空旧错误
-
-    try {
-      // 直接从 state 读取 savedTexts
-      const localResults = savedTexts
-        .map(textItem => {
-          // === 新增检查 ===
-          if (!textItem || typeof textItem.content !== 'string' || typeof textItem.name !== 'string') {
-            console.warn('Skipping invalid text item in savedTexts:', textItem); // 添加警告日志
-            return null; // 跳过无效项
-          }
-          // ===============
-
-          const contentLower = textItem.content.toLowerCase();
-          const nameLower = textItem.name.toLowerCase();
-
-          // 初步检查文档内容或名称是否包含关键词
-          if (contentLower.includes(query) || nameLower.includes(query)) {
-            // 切分文档内容为句子
-            const allSentences = splitIntoSentences(textItem.content);
-
-            // 过滤出包含查询词的句子
-            const matchingSentences = allSentences.filter(sentence =>
-               // === 新增检查 ===
-               typeof sentence === 'string' && // 确保句子是字符串
-               // ===============
-               sentence.toLowerCase().includes(query)
-            );
-
-            // 如果找到了匹配的句子，则返回结果对象
-            if (matchingSentences.length > 0) {
-              return {
-                doc_id: textItem.name,
-                sentences: matchingSentences // 包含所有匹配句子的数组
-              };
-            }
-          }
-          return null; // 如果文档不匹配或没有匹配句子，返回null
-        })
-        .filter(result => result !== null); // 过滤掉所有null结果
-
-      setSearchResults(localResults); // 更新搜索结果状态
-
-      // 如果没有找到任何结果，设置提示信息
-      if (localResults.length === 0) {
-        setError('没有在本地保存的文本中找到包含该词的句子。');
-      }
-
-    } catch (err) { // 捕获处理过程中的错误
-      console.error('前端搜索执行出错:', err);
-      setError(`搜索时发生错误: ${err.message}`);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false); // 结束搜索状态
-    }
+    setIsSearchModalOpen(false); // 关闭搜索模态框
   };
 
-  const handleFileSelected = (event) => {
-    const file = event.target.files[0];
-    console.log('[handleFileSelected] File selected:', file);
-    if (file && editingCoverIndex !== null) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        console.log('[handleFileSelected] File read success. Updating state for index:', editingCoverIndex);
-        const updatedTexts = savedTexts.map((text, index) => {
-          if (index === editingCoverIndex) {
-            // Ensure compatibility with existing structure, assuming 'id' exists
-            return { ...text, coverImage: reader.result };
-          }
-          return text;
-        });
-        setSavedTexts(updatedTexts);
-        localStorage.setItem('savedTexts', JSON.stringify(updatedTexts)); // 持久化到 localStorage
-        setEditingCoverIndex(null); // Reset editing index after update
-      };
-      reader.onerror = (error) => {
-        console.error('[handleFileSelected] Error reading file:', error);
-        setEditingCoverIndex(null); // Also reset on error
-      };
-      reader.readAsDataURL(file);
-    } else {
-      console.log('[handleFileSelected] No file selected or index invalid. Resetting index.');
-      setEditingCoverIndex(null); // Reset if no file selected or index is null
-    }
-  };
-
-  const handleCoverImageClick = (index, e) => {
-    console.log(`[handleCoverImageClick] Triggered for index: ${index}`);
-    e.stopPropagation(); // Ensure we still stop propagation
-    setEditingCoverIndex(index); // Set which card's cover is being edited
-    // Trigger the hidden file input click
-    if (coverImageInputRef.current) {
-      // Reset value to allow selecting the same file again
-      coverImageInputRef.current.value = null;
-      console.log('[handleCoverImageClick] Clicking hidden cover image input');
-      coverImageInputRef.current.click();
-    } else {
-      console.error('[handleCoverImageClick] coverImageInputRef is null or not mounted.');
-    }
-  };
-
+  // 苹果风格的阅读模式
   if (isReading && formattedText.length > 0) {
-    // 苹果风格的阅读模式
     return (
       <div style={styles.container}>
         {/* 顶部导航栏 */}
@@ -3243,6 +3260,8 @@ export default function Home() {
           isSearching={isSearching}
           error={error}
           isDark={isDark}
+          originalIndex={searchStartIndex}
+          onJumpToSentence={handleJumpToSentence}
         />
       )}
       
@@ -3480,7 +3499,10 @@ export default function Home() {
         
         {/* 搜索按钮 */}
         <button
-          onClick={() => setIsSearchModalOpen(true)}
+          onClick={() => {
+            setSearchStartIndex(currentIndex); // 记录当前索引
+            setIsSearchModalOpen(true);
+          }}
           style={{
             padding: '8px 16px',
             backgroundColor: isDark ? '#2c2c2e' : '#f0f0f0',

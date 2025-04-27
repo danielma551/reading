@@ -11,6 +11,8 @@ const SearchModal = ({
   isSearching,
   error,
   isDark, // 接收 isDark 用于主题适配
+  originalIndex, // <-- 添加这行
+  onJumpToSentence, // <-- 添加这行
 }) => {
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -140,6 +142,31 @@ const SearchModal = ({
           </button>
         </div>
 
+        {/* 添加“回到當前句子”按钮 */}
+        <div style={{ marginBottom: '15px', textAlign: 'right' }}>
+          <button
+            onClick={() => onJumpToSentence(originalIndex)}
+            style={{
+              padding: '8px 15px',
+              borderRadius: '6px',
+              border: `1px solid ${isDark ? '#555' : '#ccc'}`, // 细边框
+              backgroundColor: 'transparent', // 透明背景
+              color: isDark ? '#0a84ff' : '#007aff', // 主题色文字
+              cursor: 'pointer',
+              fontSize: '14px',
+              transition: 'background-color 0.2s, color 0.2s', // 添加悬停过渡
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = isDark ? 'rgba(10, 132, 255, 0.1)' : 'rgba(0, 122, 255, 0.05)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            回到當前句子
+          </button>
+        </div>
+
         {/* 搜索结果区域 */}
         <div style={{ flexGrow: 1, overflowY: 'auto', borderTop: `1px solid ${isDark ? '#444' : '#eee'}`, paddingTop: '15px' }}>
           {error && <p style={{ color: isDark ? '#ff4d4f' : '#d93025' }}>错误: {error}</p>}
@@ -163,8 +190,25 @@ const SearchModal = ({
                       color: isDark ? '#c0c0c0' : '#444444',
                     }}>
                       {result.sentences.map((sentence, sIndex) => (
-                        <p key={sIndex} style={{ margin: '4px 0', wordBreak: 'break-word' }}>
-                          {sentence}
+                        <p key={sIndex} style={{ margin: '4px 0', wordBreak: 'break-word', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span>{sentence.text}</span>
+                          <button
+                            onClick={() => onJumpToSentence(sentence.position)}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              marginLeft: '10px',
+                              border: `1px solid ${isDark ? '#555' : '#ccc'}`,
+                              backgroundColor: isDark ? 'rgba(10, 132, 255, 0.2)' : 'rgba(0, 122, 255, 0.1)',
+                              color: isDark ? '#0a84ff' : '#007aff',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0
+                            }}
+                          >
+                            跳转到句子
+                          </button>
                         </p>
                       ))}
                     </div>
