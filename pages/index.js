@@ -18,6 +18,56 @@ const splitIntoSentences = (text) => {
     .filter(s => s.trim());
 };
 
+// 计算当前段落的进度，针对不同段落有不同的最大值
+// totalRead: 已读总句子数
+// goal: 总目标句子数
+// 返回百分比 (0-100)
+const calculateSteppedProgress = (totalRead, goal) => {
+  // 如果已经达到或超过目标，显示100%
+  if (totalRead >= goal) return 100;
+  
+  // 如果目标为0，避免除以0的错误
+  if (goal === 0) return 0;
+  
+  // 计算每个段落的大小（总目标的1/4）
+  const segmentSize = Math.ceil(goal / 4);
+  
+  // 确定当前在第几个段落 (0-3)
+  const currentSegment = Math.floor(totalRead / segmentSize);
+  
+  // 获取当前段落内已读句子数
+  const readInCurrentSegment = totalRead % segmentSize;
+  
+  // 当前段落的最大句子数（处理最后一个段落可能不足segmentSize的情况）
+  const currentSegmentMaxSize = Math.min(segmentSize, goal - currentSegment * segmentSize);
+  
+  // 每个段落的基础百分比
+  const basePercentage = currentSegment * 25;
+  
+  // 当前段落内的增量百分比
+  const incrementPercentage = (readInCurrentSegment / currentSegmentMaxSize) * 25;
+  
+  // 返回总百分比 = 基础百分比 + 当前段落内的增量百分比
+  return basePercentage + incrementPercentage;
+};
+
+// 获取当前位于哪个段落 (1-4)
+const getCurrentSegmentNumber = (totalRead, goal) => {
+  const segmentSize = Math.ceil(goal / 4);
+  return Math.min(Math.floor(totalRead / segmentSize) + 1, 4);  // 1-4
+};
+
+// 获取当前段落内读了多少句
+const getReadInCurrentSegment = (totalRead, goal) => {
+  const segmentSize = Math.ceil(goal / 4);
+  return totalRead % segmentSize;
+};
+
+// 获取当前段落大小
+const getCurrentSegmentSize = (goal) => {
+  return Math.ceil(goal / 4);
+};
+
 export default function Home() {
   // 添加客户端渲染检测状态
   const [isClient, setIsClient] = useState(false);
@@ -614,7 +664,7 @@ export default function Home() {
   
   // 获取今日总进度（包括之前已完成的和当前会话的）
   const calculateTotalProgress = () => {
-    return Math.min(todayCompletedSentences + calculateSessionProgress(), readingGoal);
+    return todayCompletedSentences + calculateSessionProgress();
   };
   
   // 检查是否已达成阅读目标
@@ -629,12 +679,11 @@ export default function Home() {
     const prevSentencesRead = prevIndex - sessionStartIndex + 1;
     const newSentencesRead = newIndex - sessionStartIndex + 1;
     
-    // 计算包含之前已完成的总进度
+    // 如果之前的总进度小于目标，而新的总进度大于等于目标，则表示刚刚达成目标
     const prevTotalProgress = todayCompletedSentences + Math.max(prevSentencesRead, 0);
     const newTotalProgress = todayCompletedSentences + Math.max(newSentencesRead, 0);
     
-    // 之前未达到目标，但现在达到了
-    return (prevTotalProgress < readingGoal && newTotalProgress >= readingGoal);
+    return prevTotalProgress < readingGoal && newTotalProgress >= readingGoal;
   };
 
   // 计算当前会话进度百分比
@@ -688,6 +737,25 @@ export default function Home() {
   // 根据currentIndex在整个文档中的位置计算总体进度
   const calculateOverallPercentage = () => {
     return ((currentIndex + 1) / Math.min(formattedText.length, readingGoal)) * 100;
+  };
+
+  // 根据周期内的进度获取颜色 - 红色到黄色到瑞幻蓝的渐变
+  const getProgressColor = (progress) => {
+    // 使用当前句子在25句周期内的位置来决定颜色
+    // 计算当前句子在周期内的百分比
+    const positionInCycle = getPositionInSegment() + 1; // 1-25
+    const percentInCycle = (positionInCycle / cardSize) * 100; // 转为百分比
+    
+    if (percentInCycle < 33) {
+      // 红色区域 (0-33%)
+      return '#FF5252';
+    } else if (percentInCycle < 66) {
+      // 黄色区域 (33-66%)
+      return '#FFD740';
+    } else {
+      // 瑞幕蓝色区域 (66-100%)
+      return '#00A7E1';
+    }
   };
 
   // 保存当前句子到笔记本
@@ -1043,9 +1111,8 @@ export default function Home() {
               setTodayCompletedSentences(0);
               localStorage.setItem('todayCompletedSentences', '0');
             } else {
-              // 如果是新的一天，重置今日已完成的句子数
-              setTodayCompletedSentences(0);
-              localStorage.setItem('todayCompletedSentences', '0');
+              // 如果不是今天，重置为0
+              localStorage.removeItem('todayCompletedSentences');
             }
           }
         }
@@ -1195,7 +1262,7 @@ export default function Home() {
     try {
       const file = event.target.files[0];
       if (!file) return;
-      
+
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
@@ -1229,7 +1296,7 @@ export default function Home() {
           if (importedData.customFonts && importedData.customFonts.length > 0) {
             setCustomFonts(importedData.customFonts);
             localStorage.setItem('customFonts', JSON.stringify(importedData.customFonts));
-            
+
             // 为每个导入的字体创建一个 @font-face
             importedData.customFonts.forEach(font => {
               if (font.fontData) {
@@ -1842,8 +1909,9 @@ export default function Home() {
       padding: '10px',
       backgroundColor: isDark ? 'rgba(60, 60, 60, 0.5)' : 'rgba(240, 240, 240, 0.5)',
       borderRadius: '12px',
-      width: '100%',
-      maxWidth: '450px', // 适应移动端宽度
+      width: '90%',
+      maxWidth: '90%',
+      margin: '0 auto',
     },
     goalProgressTitle: {
       fontSize: '15px',
@@ -1879,8 +1947,8 @@ export default function Home() {
       top: '10px',
       left: '50%',
       transform: 'translateX(-50%)',
-      width: '85%',
-      maxWidth: '1000px',
+      width: '90%',
+      maxWidth: '90%',
       backgroundColor: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(245, 245, 247, 0.8)',
       borderRadius: '16px',
       padding: '12px',
@@ -1965,11 +2033,14 @@ export default function Home() {
     },
     gridItem: (isDark) => ({
       backgroundColor: isDark ? '#2c2c2e' : '#ffffff',
-      borderRadius: '12px',
+      borderRadius: '10px',
+      border: `1px solid ${isDark ? '#38383a' : '#e5e5e7'}`,
       // padding: '15px', // Padding will be applied to inner content instead
       width: 'calc(33.333% - 17px)', // Aim for 3 columns, adjusted for 25px gap
       minWidth: '180px', // Minimum width before wrapping
-      boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.08)',
+      boxShadow: isDark 
+        ? '0 4px 12px rgba(0, 0, 0, 0.3)' 
+        : '0 4px 12px rgba(0, 0, 0, 0.08)',
       display: 'flex',
       flexDirection: 'column',
       transition: 'transform 0.2s ease, box-shadow 0.2s ease',
@@ -2057,140 +2128,27 @@ export default function Home() {
     ? `${((currentIndex + 1) / formattedText.length) * 100}%` 
     : '0%';
 
+  // 计算当前总阅读量
+  const totalReadCount = calculateTotalProgress();
+  
+  // 当前段落号（1-4）
+  const currentSegmentNum = Math.min(Math.floor(totalReadCount / Math.ceil(readingGoal / 4)) + 1, 4);
+  
+  // 当前段落内已读句子数
+  const readInSegment = totalReadCount % Math.ceil(readingGoal / 4);
+  
+  // 当前段落大小
+  const currentSegmentSize = Math.min(Math.ceil(readingGoal / 4), readingGoal - (currentSegmentNum - 1) * Math.ceil(readingGoal / 4));
+  
+  // 段落进度百分比
+  const segmentPercentage = calculateSteppedProgress(totalReadCount, readingGoal);
+  
   // 阅读目标进度条宽度
-  const goalProgressWidth = `${calculateSessionProgressPercentage()}%`;
+  const goalProgressWidth = `${segmentPercentage}%`;
 
-  // 段落进度条宽度 - 基于剩余段落的计算方式
-  const segmentProgressWidth = `${calculateSegmentInRemainingPercentage()}%`;
-
-  // 根据周期内的进度获取颜色 - 红色到黄色到瑞幻蓝的渐变
-  const getProgressColor = (progress) => {
-    // 使用当前句子在25句周期内的位置来决定颜色
-    // 计算当前句子在周期内的百分比
-    const positionInCycle = getPositionInSegment() + 1; // 1-25
-    const percentInCycle = (positionInCycle / cardSize) * 100; // 转为百分比
-    
-    if (percentInCycle < 33) {
-      // 红色区域 (0-33%)
-      return '#FF5252';
-    } else if (percentInCycle < 66) {
-      // 黄色区域 (33-66%)
-      return '#FFD740';
-    } else {
-      // 瑞幕蓝色区域 (66-100%)
-      return '#00A7E1';
-    }
-  };
-
-  // 计算三个进度条段的进度
-  const calculateProgressSegments = () => {
-    // 计算当前已读句子数
-    const totalSentencesRead = currentIndex - sessionStartIndex + 1;
-    
-    // 定义固定周期大小为25句
-    const cycleSize = 25;
-    
-    // 三条进度条各占总进度的三分之一
-    const firstSegmentMax = 33.33;
-    const secondSegmentMax = 33.33;
-    const thirdSegmentMax = 33.34;
-    
-    // 计算三个阶段的句子数
-    const firstStageMaxSentences = Math.ceil(readingGoal * (firstSegmentMax / 100));
-    const secondStageMaxSentences = Math.ceil(readingGoal * ((firstSegmentMax + secondSegmentMax) / 100));
-    
-    // 计算总周期数
-    const totalCycles = Math.ceil(readingGoal / cycleSize);
-    
-    // 计算当前处于第几个周期（从1开始）
-    const currentCycle = Math.floor((totalSentencesRead - 1) / cycleSize) + 1;
-    
-    // 计算在当前周期内的位置（1-25）
-    const positionInCycle = ((totalSentencesRead - 1) % cycleSize) + 1;
-    
-    // 周期内的百分比进度（0-100%）
-    const percentInCycle = (positionInCycle / cycleSize) * 100;
-    
-    // 计算三个进度条的值
-    let firstSegmentProgress = 0;
-    let secondSegmentProgress = 0;
-    let thirdSegmentProgress = 0;
-    
-    // 计算每个阶段的周期数
-    const firstStageCycles = Math.ceil(firstStageMaxSentences / cycleSize);
-    const secondStageCycles = Math.ceil((secondStageMaxSentences - firstStageMaxSentences) / cycleSize);
-    const thirdStageCycles = totalCycles - firstStageCycles - secondStageCycles;
-    
-    // 确定当前周期在哪个阶段
-    if (currentCycle <= firstStageCycles) {
-      // 在第一阶段内
-      
-      // 计算当前周期在第一阶段中的位置（从1开始）
-      const cyclePositionInStage = currentCycle;
-      
-      // 计算当前周期应达到的最大进度值
-      // 最后一个周期应该达到100%，之前的周期按比例递增
-      const maxProgressForCycle = (cyclePositionInStage / firstStageCycles) * 100;
-      
-      // 根据当前周期内位置计算实际进度
-      firstSegmentProgress = (percentInCycle / 100) * maxProgressForCycle;
-      
-    } else if (currentCycle <= firstStageCycles + secondStageCycles) {
-      // 在第二阶段内
-      firstSegmentProgress = 100; // 第一条进度条已满
-      
-      // 计算当前周期在第二阶段中的位置（从1开始）
-      const cyclePositionInStage = currentCycle - firstStageCycles;
-      
-      // 计算当前周期应达到的最大进度值
-      const maxProgressForCycle = (cyclePositionInStage / secondStageCycles) * 100;
-      
-      // 根据当前周期内位置计算实际进度
-      secondSegmentProgress = (percentInCycle / 100) * maxProgressForCycle;
-      
-    } else {
-      // 在第三阶段内
-      firstSegmentProgress = 100; // 第一条进度条已满
-      secondSegmentProgress = 100; // 第二条进度条已满
-      
-      // 计算当前周期在第三阶段中的位置（从1开始）
-      const cyclePositionInStage = currentCycle - firstStageCycles - secondStageCycles;
-      
-      // 计算当前周期应达到的最大进度值
-      const maxProgressForCycle = (cyclePositionInStage / thirdStageCycles) * 100;
-      
-      // 根据当前周期内位置计算实际进度
-      thirdSegmentProgress = (percentInCycle / 100) * maxProgressForCycle;
-    }
-    
-    return [firstSegmentProgress, secondSegmentProgress, thirdSegmentProgress];
-  };
-
-  const handleJumpToSentence = (index) => {
-    if (index >= 0 && index < formattedText.length) {
-      setCurrentIndex(index);
-      
-      // 添加跳转后的视觉反馈
-      const sentenceElement = document.getElementById(`sentence-${index}`);
-      if (sentenceElement) {
-        // 滚动到句子位置
-        sentenceElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        
-        // 添加高亮效果
-        sentenceElement.style.backgroundColor = isDark ? 'rgba(10, 132, 255, 0.2)' : 'rgba(0, 122, 255, 0.1)';
-        setTimeout(() => {
-          sentenceElement.style.backgroundColor = 'transparent';
-          sentenceElement.style.transition = 'background-color 1s ease';
-        }, 1500);
-      }
-    } else {
-      // 如果索引超出范围，显示提示
-      console.warn(`跳转失败：索引 ${index} 超出文本范围 (0-${formattedText.length - 1})`);
-      alert(`无法跳转到第 ${index + 1} 句，该句子不在当前文本中。`);
-    }
-    setIsSearchModalOpen(false); // 关闭搜索模态框
-  };
-
+  // 段落进度条宽度
+  const segmentProgressWidth = goalProgressWidth;
+  
   // 苹果风格的阅读模式
   if (isReading && formattedText.length > 0) {
     return (
@@ -2293,7 +2251,7 @@ export default function Home() {
               />
             </div>
             <div style={styles.goalProgressText}>
-              {calculateSessionProgress()} / {readingGoal - todayCompletedSentences} 句 (总进度: {calculateTotalProgress()} / {readingGoal} 句, {Math.round((calculateTotalProgress() / readingGoal) * 100)}%)
+              {calculateSessionProgress()} / {readingGoal - todayCompletedSentences} 句 (总进度: {totalReadCount} / {readingGoal} 句, 第{currentSegmentNum}段: {readInSegment} / {currentSegmentSize} 句, {segmentPercentage.toFixed(1)}%)
             </div>
             
             {isGoalReached() && (
@@ -2327,7 +2285,7 @@ export default function Home() {
               <div 
                 style={{
                   height: '100%',
-                  backgroundColor: `${getProgressColor(calculateSegmentInRemainingPercentage())}cc`, // 添加透明度
+                  backgroundColor: `${getProgressColor(segmentPercentage)}cc`, // 使用总体进度
                   width: segmentProgressWidth,
                   borderRadius: '3px',
                   transition: 'width 0.3s ease, background-color 0.3s ease'
@@ -2571,7 +2529,7 @@ export default function Home() {
                 fontWeight: '600',
                 color: isDark ? '#f5f5f7' : '#1d1d1f',
               }}>
-                阅读进度: {calculateSessionProgress()} / {readingGoal - todayCompletedSentences} 句 (总进度: {calculateTotalProgress()} / {readingGoal} 句, {Math.round((calculateTotalProgress() / readingGoal) * 100)}%)
+                阅读进度: {calculateSessionProgress()} / {readingGoal - todayCompletedSentences} 句 (总进度: {totalReadCount} / {readingGoal} 句, 第{currentSegmentNum}段: {readInSegment} / {currentSegmentSize} 句, {segmentPercentage.toFixed(1)}%)
               </div>
               
               <div style={{
@@ -2649,7 +2607,7 @@ export default function Home() {
                 fontWeight: '600',
                 color: isDark ? '#f5f5f7' : '#1d1d1f',
               }}>
-                {Math.round(calculateSegmentInRemainingPercentage())}%
+                {segmentPercentage.toFixed(1)}%
               </div>
             </div>
             
@@ -2658,129 +2616,24 @@ export default function Home() {
               width: '100%',
               marginBottom: '4px',
             }}>
-              {/* 计算三个进度段 */}
-              {(() => {
-                const [firstProgress, secondProgress, thirdProgress] = calculateProgressSegments();
-                
-                // 计算当前循环
-                const totalSentencesRead = currentIndex - sessionStartIndex + 1;
-                const cycleSize = 25;
-                const currentCycle = Math.floor(totalSentencesRead / cycleSize) + 1;
-                
-                return (
-                  <>
-                    {/* 第一段进度条 */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: '4px'
-                    }}>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        第一部分 (循环 {currentCycle})
-                      </div>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        {Math.round(firstProgress)}%
-                      </div>
-                    </div>
-                    <div style={{
-                      width: '100%',
-                      height: '6px',
-                      backgroundColor: 'transparent',
-                      borderRadius: '3px',
-                      overflow: 'hidden',
-                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
-                      marginBottom: '8px',
-                    }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${firstProgress}%`,
-                        backgroundColor: 'rgba(255, 82, 82, 0.8)', // 红色半透明
-                        borderRadius: '3px',
-                        transition: 'width 0.3s ease'
-                      }} />
-                    </div>
-                    
-                    {/* 第二段进度条 */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: '4px'
-                    }}>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        第二部分 (循环 {currentCycle})
-                      </div>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        {Math.round(secondProgress)}%
-                      </div>
-                    </div>
-                    <div style={{
-                      width: '100%',
-                      height: '6px',
-                      backgroundColor: 'transparent',
-                      borderRadius: '3px',
-                      overflow: 'hidden',
-                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
-                      marginBottom: '8px',
-                    }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${secondProgress}%`,
-                        backgroundColor: 'rgba(255, 215, 64, 0.8)', // 黄色半透明
-                        borderRadius: '3px',
-                        transition: 'width 0.3s ease'
-                      }} />
-                    </div>
-                    
-                    {/* 第三段进度条 */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: '4px'
-                    }}>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        第三部分 (循环 {currentCycle})
-                      </div>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        {Math.round(thirdProgress)}%
-                      </div>
-                    </div>
-                    <div style={{
-                      width: '100%',
-                      height: '6px',
-                      backgroundColor: 'transparent',
-                      borderRadius: '3px',
-                      overflow: 'hidden',
-                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
-                    }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${thirdProgress}%`,
-                        backgroundColor: 'rgba(0, 167, 225, 0.8)', // 瑞幻蓝半透明
-                        borderRadius: '3px',
-                        transition: 'width 0.3s ease'
-                      }} />
-                    </div>
-                  </>
-                );
-              })()}
+              <div style={{
+                width: '100%',
+                height: '6px',
+                backgroundColor: 'transparent',
+                borderRadius: '3px',
+                overflow: 'hidden',
+                border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
+              }}>
+                <div 
+                  style={{
+                    height: '100%',
+                    backgroundColor: `${getProgressColor(segmentPercentage)}cc`, // 使用总体进度
+                    width: segmentProgressWidth,
+                    borderRadius: '3px',
+                    transition: 'width 0.3s ease, background-color 0.3s ease'
+                  }}
+                />
+              </div>
             </div>
             
             {/* 添加简洁的文本导航控件 */}
@@ -2910,9 +2763,9 @@ export default function Home() {
             bottom: 0,
             left: 0,
             height: '3px', // 减小高度
-            backgroundColor: `${getProgressColor(calculateSegmentInRemainingPercentage())}cc`, // 添加透明度
+            backgroundColor: `${getProgressColor(segmentPercentage)}cc`, // 使用总体进度
             transition: 'width 0.3s ease, background-color 0.3s ease',
-            width: progressWidth,
+            width: segmentProgressWidth,
             boxShadow: '0 0 3px rgba(0,0,0,0.1)', // 添加微妙阴影
           }}
         />
