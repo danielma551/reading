@@ -57,6 +57,7 @@ export default function Home() {
   const [error, setError] = useState(null); // New state for search error
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); // 新增：控制搜索模态框的状态
   const [searchStartIndex, setSearchStartIndex] = useState(0); // 新增：记录打开搜索时的句子索引
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false); // 新增：控制保存句子后的确认状态
   const fileInputRef = useRef(null); // Hidden file input ref
   const coverImageInputRef = useRef(null); // Hidden cover image input ref
   const [editingCoverIndex, setEditingCoverIndex] = useState(null); // Index of text being edited for cover image
@@ -710,8 +711,11 @@ export default function Home() {
       // 更新状态
       setSavedSentences(getSavedSentences());
       
-      // 提示用户
-      alert(result.message);
+      // 显示确认状态，代替 alert
+      setShowSaveConfirmation(true);
+      setTimeout(() => {
+        setShowSaveConfirmation(false);
+      }, 1500); // 1.5秒后自动隐藏确认状态
     } else {
       // 保存失败
       alert('保存句子失败，请重试');
@@ -2577,6 +2581,7 @@ export default function Home() {
                 {/* 添加保存句子按钮 */}
                 <button
                   onClick={saveCurrentSentence}
+                  disabled={showSaveConfirmation} // 保存成功时短暂禁用
                   style={{
                     border: 'none',
                     background: isDark ? '#0a84ff' : '#007aff',
@@ -2591,8 +2596,7 @@ export default function Home() {
                     gap: '4px'
                   }}
                 >
-                  <span style={{ fontSize: '14px' }}>📝</span> 
-                  保存句子
+                  {showSaveConfirmation ? '✅ 保存成功' : '保存句子'}
                 </button>
                 
                 {/* 添加查看笔记按钮 */}
