@@ -739,23 +739,10 @@ export default function Home() {
     return ((currentIndex + 1) / Math.min(formattedText.length, readingGoal)) * 100;
   };
 
-  // 根据周期内的进度获取颜色 - 红色到黄色到瑞幻蓝的渐变
-  const getProgressColor = (progress) => {
-    // 使用当前句子在25句周期内的位置来决定颜色
-    // 计算当前句子在周期内的百分比
-    const positionInCycle = getPositionInSegment() + 1; // 1-25
-    const percentInCycle = (positionInCycle / cardSize) * 100; // 转为百分比
-    
-    if (percentInCycle < 33) {
-      // 红色区域 (0-33%)
-      return '#FF5252';
-    } else if (percentInCycle < 66) {
-      // 黄色区域 (33-66%)
-      return '#FFD740';
-    } else {
-      // 瑞幕蓝色区域 (66-100%)
-      return '#00A7E1';
-    }
+  // 根据周期内的进度获取颜色 - 固定为单一蓝色
+  const getProgressColor = () => {
+    // 统一使用蓝色
+    return isDark ? '#0a84ff' : '#06c';
   };
 
   // 保存当前句子到笔记本
@@ -2243,7 +2230,7 @@ export default function Home() {
               <div 
                 style={{
                   height: '100%',
-                  backgroundColor: isGoalReached() ? '#30d158' : (isDark ? '#0a84ff' : '#06c'),
+                  backgroundColor: isDark ? '#0a84ff' : '#06c',
                   borderRadius: '3px',
                   transition: 'width 0.3s ease',
                   width: goalProgressWidth
@@ -2285,7 +2272,7 @@ export default function Home() {
               <div 
                 style={{
                   height: '100%',
-                  backgroundColor: `${getProgressColor(segmentPercentage)}cc`, // 使用总体进度
+                  backgroundColor: isDark ? '#0a84ff' : '#06c',
                   width: segmentProgressWidth,
                   borderRadius: '3px',
                   transition: 'width 0.3s ease, background-color 0.3s ease'
@@ -2627,7 +2614,7 @@ export default function Home() {
                 <div 
                   style={{
                     height: '100%',
-                    backgroundColor: `${getProgressColor(segmentPercentage)}cc`, // 使用总体进度
+                    backgroundColor: isDark ? '#0a84ff' : '#06c',
                     width: segmentProgressWidth,
                     borderRadius: '3px',
                     transition: 'width 0.3s ease, background-color 0.3s ease'
@@ -2763,7 +2750,7 @@ export default function Home() {
             bottom: 0,
             left: 0,
             height: '3px', // 减小高度
-            backgroundColor: `${getProgressColor(segmentPercentage)}cc`, // 使用总体进度
+            backgroundColor: isDark ? '#0a84ff' : '#06c',
             transition: 'width 0.3s ease, background-color 0.3s ease',
             width: segmentProgressWidth,
             boxShadow: '0 0 3px rgba(0,0,0,0.1)', // 添加微妙阴影
