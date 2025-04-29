@@ -6,8 +6,70 @@ import SearchModal from '../components/SearchModal';
 const splitIntoSentences = (text) => {
   if (!text) return [];
   // 使用更可靠的正则表达式匹配中文和英文的句子结束符，并保留结束符
-  const sentences = text.match(/[^.?!。？！；]+[.?!。？！；]?/g);
-  return sentences ? sentences.map(s => s.trim()).filter(s => s) : [];
+  return text
+    .split(/([，。？！；])/g)
+    .reduce((acc, curr, i, arr) => {
+      if (i % 2 === 0) {
+        const nextItem = arr[i + 1];
+        return acc.concat(curr + (nextItem || ''));
+      }
+      return acc;
+    }, [])
+    .filter(s => s.trim());
+};
+
+// 计算当前段落的进度，针对不同段落有不同的最大值
+// totalRead: 已读总句子数
+// goal: 总目标句子数
+// 返回百分比 (0-100)
+const calculateSteppedProgress = (totalRead, goal) => {
+  // 如果已经达到或超过目标，显示100%
+  if (totalRead >= goal) return 100;
+  
+  // 如果目标为0，避免除以0的错误
+  if (goal === 0) return 0;
+  
+  // 计算每个段落的大小（总目标的1/4）
+  const segmentSize = Math.ceil(goal / 4);
+  
+  // 确定当前在第几个段落 (0-3)
+  const currentSegment = Math.floor(totalRead / segmentSize);
+  
+  // 获取当前段落内已读句子数
+  const readInCurrentSegment = totalRead % segmentSize;
+  
+  // 当前段落的最大句子数（处理最后一个段落可能不足segmentSize的情况）
+  const currentSegmentMaxSize = Math.min(segmentSize, goal - currentSegment * segmentSize);
+  
+  // 根据当前段落确定最大百分比
+  let maxPercentage;
+  switch(currentSegment) {
+    case 0: maxPercentage = 25; break;  // 第一段最高25%
+    case 1: maxPercentage = 50; break;  // 第二段最高50%
+    case 2: maxPercentage = 75; break;  // 第三段最高75%
+    case 3: maxPercentage = 100; break; // 第四段最高100%
+    default: maxPercentage = 25;        // 默认情况
+  }
+  
+  // 计算当前段落内的进度百分比
+  return (readInCurrentSegment / currentSegmentMaxSize) * maxPercentage;
+};
+
+// 获取当前位于哪个段落 (1-4)
+const getCurrentSegmentNumber = (totalRead, goal) => {
+  const segmentSize = Math.ceil(goal / 4);
+  return Math.min(Math.floor(totalRead / segmentSize) + 1, 4);  // 1-4
+};
+
+// 获取当前段落内读了多少句
+const getReadInCurrentSegment = (totalRead, goal) => {
+  const segmentSize = Math.ceil(goal / 4);
+  return totalRead % segmentSize;
+};
+
+// 获取当前段落大小
+const getCurrentSegmentSize = (goal) => {
+  return Math.ceil(goal / 4);
 };
 
 export default function Home() {
@@ -48,15 +110,135 @@ export default function Home() {
   const [isSearching, setIsSearching] = useState(false); // New state for search loading
   const [error, setError] = useState(null); // New state for search error
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); // 新增：控制搜索模态框的状态
+  const [searchStartIndex, setSearchStartIndex] = useState(0); // 新增：记录打开搜索时的句子索引
+  const [showSaveConfirmation, setShowSaveConfirmation] = useState(false); // 新增：控制保存句子后的确认状态
   const fileInputRef = useRef(null); // Hidden file input ref
   const coverImageInputRef = useRef(null); // Hidden cover image input ref
   const [editingCoverIndex, setEditingCoverIndex] = useState(null); // Index of text being edited for cover image
+
+  // === 恢复: 执行搜索的函数 ===
+  const handleSearch = () => { 
+    const query = searchQuery.trim().toLowerCase(); // 准备查询词，忽略大小写
+    if (!query) {
+      // 可以选择不提示，或者在这里设置一个 error 状态
+      setSearchResults([]);
+      setError(null);
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchResults([]); // 清空旧结果
+    setError(null); // 清空旧错误
+
+    try {
+      // 直接从 state 读取 savedTexts
+      const localResults = savedTexts
+        .map(textItem => {
+          if (!textItem || typeof textItem.content !== 'string' || typeof textItem.name !== 'string') {
+            console.warn('Skipping invalid text item in savedTexts:', textItem);
+            return null;
+          }
+
+          const contentLower = textItem.content.toLowerCase();
+          const nameLower = textItem.name.toLowerCase();
+
+          // 初步检查文档内容或名称是否包含关键词
+          if (contentLower.includes(query) || nameLower.includes(query)) {
+            // 切分文档内容为句子
+            const allSentences = splitIntoSentences(textItem.content);
+
+            // 查找匹配的句子并记录其索引位置
+            const matchingSentencesWithPositions = [];
+            
+            allSentences.forEach((sentence, index) => {
+              if (typeof sentence === 'string' && sentence.toLowerCase().includes(query)) {
+                matchingSentencesWithPositions.push({
+                  text: sentence,
+                  position: index // 记录句子在原文中的索引位置
+                });
+              }
+            });
+
+            // 如果找到了匹配的句子，则返回结果对象
+            if (matchingSentencesWithPositions.length > 0) {
+              return {
+                doc_id: textItem.name,
+                sentences: matchingSentencesWithPositions // 包含所有匹配句子及其位置的数组
+              };
+            }
+          }
+          return null; // 如果文档不匹配或没有匹配句子，返回null
+        })
+        .filter(result => result !== null); // 过滤掉所有null结果
+
+      setSearchResults(localResults); // 更新搜索结果状态
+
+      // 如果没有找到任何结果，设置提示信息
+      if (localResults.length === 0) {
+        // setError('没有在本地保存的文本中找到包含该词的句子。'); // 可以取消错误提示，让 SearchModal 显示默认消息
+      }
+
+    } catch (err) { // 捕获处理过程中的错误
+      console.error('前端搜索执行出错:', err);
+      setError(`搜索时发生错误: ${err.message}`);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false); // 结束搜索状态
+    }
+  };
+  // ============================
 
   // 确保文件选择器引用正确
   const handleAddImageClick = () => {
     console.log('Add image button clicked');
     if (coverImageInputRef.current) {
       coverImageInputRef.current.click();
+    }
+  };
+
+  // 处理封面图片文件选择
+  const handleFileSelected = (event) => {
+    const file = event.target.files[0];
+    console.log('[handleFileSelected] File selected:', file);
+    if (file && editingCoverIndex !== null) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        console.log('[handleFileSelected] File read success. Updating state for index:', editingCoverIndex);
+        const updatedTexts = savedTexts.map((text, index) => {
+          if (index === editingCoverIndex) {
+            // Ensure compatibility with existing structure, assuming 'id' exists
+            return { ...text, coverImage: reader.result };
+          }
+          return text;
+        });
+        setSavedTexts(updatedTexts);
+        localStorage.setItem('savedTexts', JSON.stringify(updatedTexts)); // 持久化到 localStorage
+        setEditingCoverIndex(null); // Reset editing index after update
+      };
+      reader.onerror = (error) => {
+        console.error('[handleFileSelected] Error reading file:', error);
+        setEditingCoverIndex(null); // Also reset on error
+      };
+      reader.readAsDataURL(file);
+    } else {
+      console.log('[handleFileSelected] No file selected or index invalid. Resetting index.');
+      setEditingCoverIndex(null); // Reset if no file selected or index is null
+    }
+  };
+
+  // 处理点击封面图片以触发文件选择
+  const handleCoverImageClick = (index, e) => {
+    console.log(`[handleCoverImageClick] Triggered for index: ${index}`);
+    e.stopPropagation(); // Ensure we still stop propagation
+    setEditingCoverIndex(index); // Set which card's cover is being edited
+    // Trigger the hidden file input click
+    if (coverImageInputRef.current) {
+      // Reset value to allow selecting the same file again
+      coverImageInputRef.current.value = null;
+      console.log('[handleCoverImageClick] Clicking hidden cover image input');
+      coverImageInputRef.current.click();
+    } else {
+      console.error('[handleCoverImageClick] coverImageInputRef is null or not mounted.');
     }
   };
 
@@ -486,7 +668,7 @@ export default function Home() {
   
   // 获取今日总进度（包括之前已完成的和当前会话的）
   const calculateTotalProgress = () => {
-    return Math.min(todayCompletedSentences + calculateSessionProgress(), readingGoal);
+    return todayCompletedSentences + calculateSessionProgress();
   };
   
   // 检查是否已达成阅读目标
@@ -501,12 +683,11 @@ export default function Home() {
     const prevSentencesRead = prevIndex - sessionStartIndex + 1;
     const newSentencesRead = newIndex - sessionStartIndex + 1;
     
-    // 计算包含之前已完成的总进度
+    // 如果之前的总进度小于目标，而新的总进度大于等于目标，则表示刚刚达成目标
     const prevTotalProgress = todayCompletedSentences + Math.max(prevSentencesRead, 0);
     const newTotalProgress = todayCompletedSentences + Math.max(newSentencesRead, 0);
     
-    // 之前未达到目标，但现在达到了
-    return (prevTotalProgress < readingGoal && newTotalProgress >= readingGoal);
+    return prevTotalProgress < readingGoal && newTotalProgress >= readingGoal;
   };
 
   // 计算当前会话进度百分比
@@ -562,6 +743,12 @@ export default function Home() {
     return ((currentIndex + 1) / Math.min(formattedText.length, readingGoal)) * 100;
   };
 
+  // 根据周期内的进度获取颜色 - 固定为单一蓝色
+  const getProgressColor = () => {
+    // 统一使用蓝色
+    return isDark ? '#0a84ff' : '#06c';
+  };
+
   // 保存当前句子到笔记本
   const saveCurrentSentence = () => {
     if (!isClient || !formattedText || formattedText.length === 0 || currentIndex < 0 || currentIndex >= formattedText.length) {
@@ -583,8 +770,11 @@ export default function Home() {
       // 更新状态
       setSavedSentences(getSavedSentences());
       
-      // 提示用户
-      alert(result.message);
+      // 显示确认状态，代替 alert
+      setShowSaveConfirmation(true);
+      setTimeout(() => {
+        setShowSaveConfirmation(false);
+      }, 1500); // 1.5秒后自动隐藏确认状态
     } else {
       // 保存失败
       alert('保存句子失败，请重试');
@@ -724,17 +914,8 @@ export default function Home() {
         setTimeout(() => {
           const chunk = chunks[processedChunks];
           
-          // 处理当前块
-          const chunkSentences = chunk
-            .split(/([，。？；])/g)
-            .reduce((acc, curr, i, arr) => {
-              if (i % 2 === 0) {
-                const nextItem = arr[i + 1];
-                return acc.concat(curr + (nextItem || ''));
-              }
-              return acc;
-            }, [])
-            .filter(s => s.trim());
+          // 处理当前块，使用统一的 splitIntoSentences 函数
+          const chunkSentences = splitIntoSentences(chunk);
           
           // 合并结果
           resultSentences = resultSentences.concat(chunkSentences);
@@ -755,16 +936,8 @@ export default function Home() {
       // 对于普通大小的文本，使用setTimeout避免UI阻塞
       setTimeout(() => {
         try {
-          const sentences = inputText
-            .split(/([，。？；])/g)
-            .reduce((acc, curr, i, arr) => {
-              if (i % 2 === 0) {
-                const nextItem = arr[i + 1];
-                return acc.concat(curr + (nextItem || ''));
-              }
-              return acc;
-            }, [])
-            .filter(s => s.trim());
+          // 使用统一的 splitIntoSentences 函数
+          const sentences = splitIntoSentences(inputText);
           
           setFormattedText(sentences);
         } catch (error) {
@@ -882,7 +1055,7 @@ export default function Home() {
     
     setLastPositions(adjustedPositions);
     localStorage.setItem('lastPositions', JSON.stringify(adjustedPositions));
-    
+
     // 如果删除的是当前选中的文本，清空选择
     if (selectedSavedText === index) {
       setSelectedSavedText(null);
@@ -929,9 +1102,8 @@ export default function Home() {
               setTodayCompletedSentences(0);
               localStorage.setItem('todayCompletedSentences', '0');
             } else {
-              // 如果是新的一天，重置今日已完成的句子数
-              setTodayCompletedSentences(0);
-              localStorage.setItem('todayCompletedSentences', '0');
+              // 如果不是今天，重置为0
+              localStorage.removeItem('todayCompletedSentences');
             }
           }
         }
@@ -1081,7 +1253,7 @@ export default function Home() {
     try {
       const file = event.target.files[0];
       if (!file) return;
-      
+
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
@@ -1115,7 +1287,7 @@ export default function Home() {
           if (importedData.customFonts && importedData.customFonts.length > 0) {
             setCustomFonts(importedData.customFonts);
             localStorage.setItem('customFonts', JSON.stringify(importedData.customFonts));
-            
+
             // 为每个导入的字体创建一个 @font-face
             importedData.customFonts.forEach(font => {
               if (font.fontData) {
@@ -1728,8 +1900,9 @@ export default function Home() {
       padding: '10px',
       backgroundColor: isDark ? 'rgba(60, 60, 60, 0.5)' : 'rgba(240, 240, 240, 0.5)',
       borderRadius: '12px',
-      width: '100%',
-      maxWidth: '450px', // 适应移动端宽度
+      width: '90%',
+      maxWidth: '90%',
+      margin: '0 auto',
     },
     goalProgressTitle: {
       fontSize: '15px',
@@ -1765,8 +1938,8 @@ export default function Home() {
       top: '10px',
       left: '50%',
       transform: 'translateX(-50%)',
-      width: '85%',
-      maxWidth: '1000px',
+      width: '90%',
+      maxWidth: '90%',
       backgroundColor: isDark ? 'rgba(30, 30, 30, 0.8)' : 'rgba(245, 245, 247, 0.8)',
       borderRadius: '16px',
       padding: '12px',
@@ -1851,11 +2024,14 @@ export default function Home() {
     },
     gridItem: (isDark) => ({
       backgroundColor: isDark ? '#2c2c2e' : '#ffffff',
-      borderRadius: '12px',
+      borderRadius: '10px',
+      border: `1px solid ${isDark ? '#38383a' : '#e5e5e7'}`,
       // padding: '15px', // Padding will be applied to inner content instead
       width: 'calc(33.333% - 17px)', // Aim for 3 columns, adjusted for 25px gap
       minWidth: '180px', // Minimum width before wrapping
-      boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.08)',
+      boxShadow: isDark 
+        ? '0 4px 12px rgba(0, 0, 0, 0.3)' 
+        : '0 4px 12px rgba(0, 0, 0, 0.08)',
       display: 'flex',
       flexDirection: 'column',
       transition: 'transform 0.2s ease, box-shadow 0.2s ease',
@@ -1868,7 +2044,7 @@ export default function Home() {
     }),
     gridItemImagePlaceholder: (isDark) => ({ // Placeholder for the book cover
       width: '100%',
-      paddingTop: '140%', // Aspect ratio for the image area (adjust as needed)
+      paddingTop: '140%', // Aspect ratio from original placeholder style
       backgroundColor: isDark ? '#3a3a3c' : '#e5e5ea',
       // Removed border radius from here, applied to parent gridItem
       marginBottom: '0', // No margin needed if padding is on content
@@ -1943,226 +2119,29 @@ export default function Home() {
     ? `${((currentIndex + 1) / formattedText.length) * 100}%` 
     : '0%';
 
+  // 计算当前总阅读量
+  const totalReadCount = calculateTotalProgress();
+  
+  // 当前段落号（1-4）
+  const currentSegmentNum = Math.min(Math.floor(totalReadCount / Math.ceil(readingGoal / 4)) + 1, 4);
+  
+  // 当前段落内已读句子数
+  const readInSegment = totalReadCount % Math.ceil(readingGoal / 4);
+  
+  // 当前段落大小
+  const currentSegmentSize = Math.min(Math.ceil(readingGoal / 4), readingGoal - (currentSegmentNum - 1) * Math.ceil(readingGoal / 4));
+  
+  // 段落进度百分比
+  const segmentPercentage = calculateSteppedProgress(totalReadCount, readingGoal);
+  
   // 阅读目标进度条宽度
-  const goalProgressWidth = `${calculateSessionProgressPercentage()}%`;
+  const goalProgressWidth = `${segmentPercentage}%`;
 
-  // 段落进度条宽度 - 基于剩余段落的计算方式
-  const segmentProgressWidth = `${calculateSegmentInRemainingPercentage()}%`;
-
-  // 根据周期内的进度获取颜色 - 红色到黄色到瑞幻蓝的渐变
-  const getProgressColor = (progress) => {
-    // 使用当前句子在25句周期内的位置来决定颜色
-    // 计算当前句子在周期内的百分比
-    const positionInCycle = getPositionInSegment() + 1; // 1-25
-    const percentInCycle = (positionInCycle / cardSize) * 100; // 转为百分比
-    
-    if (percentInCycle < 33) {
-      // 红色区域 (0-33%)
-      return '#FF5252';
-    } else if (percentInCycle < 66) {
-      // 黄色区域 (33-66%)
-      return '#FFD740';
-    } else {
-      // 瑞幕蓝色区域 (66-100%)
-      return '#00A7E1';
-    }
-  };
-
-  // 计算三个进度条段的进度
-  const calculateProgressSegments = () => {
-    // 计算当前已读句子数
-    const totalSentencesRead = currentIndex - sessionStartIndex + 1;
-    
-    // 定义固定周期大小为25句
-    const cycleSize = 25;
-    
-    // 三条进度条各占总进度的三分之一
-    const firstSegmentMax = 33.33;
-    const secondSegmentMax = 33.33;
-    const thirdSegmentMax = 33.34;
-    
-    // 计算三个阶段的句子数
-    const firstStageMaxSentences = Math.ceil(readingGoal * (firstSegmentMax / 100));
-    const secondStageMaxSentences = Math.ceil(readingGoal * ((firstSegmentMax + secondSegmentMax) / 100));
-    
-    // 计算总周期数
-    const totalCycles = Math.ceil(readingGoal / cycleSize);
-    
-    // 计算当前处于第几个周期（从1开始）
-    const currentCycle = Math.floor((totalSentencesRead - 1) / cycleSize) + 1;
-    
-    // 计算在当前周期内的位置（1-25）
-    const positionInCycle = ((totalSentencesRead - 1) % cycleSize) + 1;
-    
-    // 周期内的百分比进度（0-100%）
-    const percentInCycle = (positionInCycle / cycleSize) * 100;
-    
-    // 计算三个进度条的值
-    let firstSegmentProgress = 0;
-    let secondSegmentProgress = 0;
-    let thirdSegmentProgress = 0;
-    
-    // 计算每个阶段的周期数
-    const firstStageCycles = Math.ceil(firstStageMaxSentences / cycleSize);
-    const secondStageCycles = Math.ceil((secondStageMaxSentences - firstStageMaxSentences) / cycleSize);
-    const thirdStageCycles = totalCycles - firstStageCycles - secondStageCycles;
-    
-    // 确定当前周期在哪个阶段
-    if (currentCycle <= firstStageCycles) {
-      // 在第一阶段内
-      
-      // 计算当前周期在第一阶段中的位置（从1开始）
-      const cyclePositionInStage = currentCycle;
-      
-      // 计算当前周期应达到的最大进度值
-      // 最后一个周期应该达到100%，之前的周期按比例递增
-      const maxProgressForCycle = (cyclePositionInStage / firstStageCycles) * 100;
-      
-      // 根据当前周期内位置计算实际进度
-      firstSegmentProgress = (percentInCycle / 100) * maxProgressForCycle;
-      
-    } else if (currentCycle <= firstStageCycles + secondStageCycles) {
-      // 在第二阶段内
-      firstSegmentProgress = 100; // 第一条进度条已满
-      
-      // 计算当前周期在第二阶段中的位置（从1开始）
-      const cyclePositionInStage = currentCycle - firstStageCycles;
-      
-      // 计算当前周期应达到的最大进度值
-      const maxProgressForCycle = (cyclePositionInStage / secondStageCycles) * 100;
-      
-      // 根据当前周期内位置计算实际进度
-      secondSegmentProgress = (percentInCycle / 100) * maxProgressForCycle;
-      
-    } else {
-      // 在第三阶段内
-      firstSegmentProgress = 100; // 第一条进度条已满
-      secondSegmentProgress = 100; // 第二条进度条已满
-      
-      // 计算当前周期在第三阶段中的位置（从1开始）
-      const cyclePositionInStage = currentCycle - firstStageCycles - secondStageCycles;
-      
-      // 计算当前周期应达到的最大进度值
-      const maxProgressForCycle = (cyclePositionInStage / thirdStageCycles) * 100;
-      
-      // 根据当前周期内位置计算实际进度
-      thirdSegmentProgress = (percentInCycle / 100) * maxProgressForCycle;
-    }
-    
-    return [firstSegmentProgress, secondSegmentProgress, thirdSegmentProgress];
-  };
-
-  const handleSearch = () => { 
-    const query = searchQuery.trim().toLowerCase(); // 准备查询词，忽略大小写
-    if (!query) {
-      alert('请输入搜索词');
-      return;
-    }
-    setIsSearching(true);
-    setSearchResults([]); // 清空旧结果
-    setError(null); // 清空旧错误
-
-    try {
-      // 直接从 state 读取 savedTexts
-      const localResults = savedTexts
-        .map(textItem => {
-          // === 新增检查 ===
-          if (!textItem || typeof textItem.content !== 'string' || typeof textItem.name !== 'string') {
-            console.warn('Skipping invalid text item in savedTexts:', textItem); // 添加警告日志
-            return null; // 跳过无效项
-          }
-          // ===============
-
-          const contentLower = textItem.content.toLowerCase();
-          const nameLower = textItem.name.toLowerCase();
-
-          // 初步检查文档内容或名称是否包含关键词
-          if (contentLower.includes(query) || nameLower.includes(query)) {
-            // 切分文档内容为句子
-            const allSentences = splitIntoSentences(textItem.content);
-
-            // 过滤出包含查询词的句子
-            const matchingSentences = allSentences.filter(sentence =>
-               // === 新增检查 ===
-               typeof sentence === 'string' && // 确保句子是字符串
-               // ===============
-               sentence.toLowerCase().includes(query)
-            );
-
-            // 如果找到了匹配的句子，则返回结果对象
-            if (matchingSentences.length > 0) {
-              return {
-                doc_id: textItem.name,
-                sentences: matchingSentences // 包含所有匹配句子的数组
-              };
-            }
-          }
-          return null; // 如果文档不匹配或没有匹配句子，返回null
-        })
-        .filter(result => result !== null); // 过滤掉所有null结果
-
-      setSearchResults(localResults); // 更新搜索结果状态
-
-      // 如果没有找到任何结果，设置提示信息
-      if (localResults.length === 0) {
-        setError('没有在本地保存的文本中找到包含该词的句子。');
-      }
-
-    } catch (err) { // 捕获处理过程中的错误
-      console.error('前端搜索执行出错:', err);
-      setError(`搜索时发生错误: ${err.message}`);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false); // 结束搜索状态
-    }
-  };
-
-  const handleFileSelected = (event) => {
-    const file = event.target.files[0];
-    console.log('[handleFileSelected] File selected:', file);
-    if (file && editingCoverIndex !== null) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        console.log('[handleFileSelected] File read success. Updating state for index:', editingCoverIndex);
-        const updatedTexts = savedTexts.map((text, index) => {
-          if (index === editingCoverIndex) {
-            // Ensure compatibility with existing structure, assuming 'id' exists
-            return { ...text, coverImage: reader.result };
-          }
-          return text;
-        });
-        setSavedTexts(updatedTexts);
-        localStorage.setItem('savedTexts', JSON.stringify(updatedTexts)); // 持久化到 localStorage
-        setEditingCoverIndex(null); // Reset editing index after update
-      };
-      reader.onerror = (error) => {
-        console.error('[handleFileSelected] Error reading file:', error);
-        setEditingCoverIndex(null); // Also reset on error
-      };
-      reader.readAsDataURL(file);
-    } else {
-      console.log('[handleFileSelected] No file selected or index invalid. Resetting index.');
-      setEditingCoverIndex(null); // Reset if no file selected or index is null
-    }
-  };
-
-  const handleCoverImageClick = (index, e) => {
-    console.log(`[handleCoverImageClick] Triggered for index: ${index}`);
-    e.stopPropagation(); // Ensure we still stop propagation
-    setEditingCoverIndex(index); // Set which card's cover is being edited
-    // Trigger the hidden file input click
-    if (coverImageInputRef.current) {
-      // Reset value to allow selecting the same file again
-      coverImageInputRef.current.value = null;
-      console.log('[handleCoverImageClick] Clicking hidden cover image input');
-      coverImageInputRef.current.click();
-    } else {
-      console.error('[handleCoverImageClick] coverImageInputRef is null or not mounted.');
-    }
-  };
-
+  // 段落进度条宽度
+  const segmentProgressWidth = goalProgressWidth;
+  
+  // 苹果风格的阅读模式
   if (isReading && formattedText.length > 0) {
-    // 苹果风格的阅读模式
     return (
       <div style={styles.container}>
         {/* 顶部导航栏 */}
@@ -2255,7 +2234,7 @@ export default function Home() {
               <div 
                 style={{
                   height: '100%',
-                  backgroundColor: isGoalReached() ? '#30d158' : (isDark ? '#0a84ff' : '#06c'),
+                  backgroundColor: isDark ? '#0a84ff' : '#06c',
                   borderRadius: '3px',
                   transition: 'width 0.3s ease',
                   width: goalProgressWidth
@@ -2263,7 +2242,7 @@ export default function Home() {
               />
             </div>
             <div style={styles.goalProgressText}>
-              {calculateSessionProgress()} / {readingGoal - todayCompletedSentences} 句 (总进度: {calculateTotalProgress()} / {readingGoal} 句, {Math.round((calculateTotalProgress() / readingGoal) * 100)}%)
+              {calculateSessionProgress()} / {readingGoal - todayCompletedSentences} 句 (总进度: {totalReadCount} / {readingGoal} 句, 第{currentSegmentNum}段: {readInSegment} / {currentSegmentSize} 句, {segmentPercentage.toFixed(1)}%)
             </div>
             
             {isGoalReached() && (
@@ -2297,7 +2276,7 @@ export default function Home() {
               <div 
                 style={{
                   height: '100%',
-                  backgroundColor: `${getProgressColor(calculateSegmentInRemainingPercentage())}cc`, // 添加透明度
+                  backgroundColor: isDark ? '#0a84ff' : '#06c',
                   width: segmentProgressWidth,
                   borderRadius: '3px',
                   transition: 'width 0.3s ease, background-color 0.3s ease'
@@ -2541,7 +2520,7 @@ export default function Home() {
                 fontWeight: '600',
                 color: isDark ? '#f5f5f7' : '#1d1d1f',
               }}>
-                阅读进度: {calculateSessionProgress()} / {readingGoal - todayCompletedSentences} 句 (总进度: {calculateTotalProgress()} / {readingGoal} 句, {Math.round((calculateTotalProgress() / readingGoal) * 100)}%)
+                阅读进度: {calculateSessionProgress()} / {readingGoal - todayCompletedSentences} 句 (总进度: {totalReadCount} / {readingGoal} 句, 第{currentSegmentNum}段: {readInSegment} / {currentSegmentSize} 句, {segmentPercentage.toFixed(1)}%)
               </div>
               
               <div style={{
@@ -2551,6 +2530,7 @@ export default function Home() {
                 {/* 添加保存句子按钮 */}
                 <button
                   onClick={saveCurrentSentence}
+                  disabled={showSaveConfirmation} // 保存成功时短暂禁用
                   style={{
                     border: 'none',
                     background: isDark ? '#0a84ff' : '#007aff',
@@ -2565,8 +2545,7 @@ export default function Home() {
                     gap: '4px'
                   }}
                 >
-                  <span style={{ fontSize: '14px' }}>📝</span> 
-                  保存句子
+                  {showSaveConfirmation ? '✅ 保存成功' : '保存句子'}
                 </button>
                 
                 {/* 添加查看笔记按钮 */}
@@ -2619,7 +2598,7 @@ export default function Home() {
                 fontWeight: '600',
                 color: isDark ? '#f5f5f7' : '#1d1d1f',
               }}>
-                {Math.round(calculateSegmentInRemainingPercentage())}%
+                {segmentPercentage.toFixed(1)}%
               </div>
             </div>
             
@@ -2628,129 +2607,24 @@ export default function Home() {
               width: '100%',
               marginBottom: '4px',
             }}>
-              {/* 计算三个进度段 */}
-              {(() => {
-                const [firstProgress, secondProgress, thirdProgress] = calculateProgressSegments();
-                
-                // 计算当前循环
-                const totalSentencesRead = currentIndex - sessionStartIndex + 1;
-                const cycleSize = 25;
-                const currentCycle = Math.floor(totalSentencesRead / cycleSize) + 1;
-                
-                return (
-                  <>
-                    {/* 第一段进度条 */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: '4px'
-                    }}>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        第一部分 (循环 {currentCycle})
-                      </div>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        {Math.round(firstProgress)}%
-                      </div>
-                    </div>
-                    <div style={{
-                      width: '100%',
-                      height: '6px',
-                      backgroundColor: 'transparent',
-                      borderRadius: '3px',
-                      overflow: 'hidden',
-                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
-                      marginBottom: '8px',
-                    }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${firstProgress}%`,
-                        backgroundColor: 'rgba(255, 82, 82, 0.8)', // 红色半透明
-                        borderRadius: '3px',
-                        transition: 'width 0.3s ease'
-                      }} />
-                    </div>
-                    
-                    {/* 第二段进度条 */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: '4px'
-                    }}>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        第二部分 (循环 {currentCycle})
-                      </div>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        {Math.round(secondProgress)}%
-                      </div>
-                    </div>
-                    <div style={{
-                      width: '100%',
-                      height: '6px',
-                      backgroundColor: 'transparent',
-                      borderRadius: '3px',
-                      overflow: 'hidden',
-                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
-                      marginBottom: '8px',
-                    }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${secondProgress}%`,
-                        backgroundColor: 'rgba(255, 215, 64, 0.8)', // 黄色半透明
-                        borderRadius: '3px',
-                        transition: 'width 0.3s ease'
-                      }} />
-                    </div>
-                    
-                    {/* 第三段进度条 */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: '4px'
-                    }}>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        第三部分 (循环 {currentCycle})
-                      </div>
-                      <div style={{
-                        fontSize: '10px',
-                        color: isDark ? '#98989d' : '#8e8e93',
-                      }}>
-                        {Math.round(thirdProgress)}%
-                      </div>
-                    </div>
-                    <div style={{
-                      width: '100%',
-                      height: '6px',
-                      backgroundColor: 'transparent',
-                      borderRadius: '3px',
-                      overflow: 'hidden',
-                      border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
-                    }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${thirdProgress}%`,
-                        backgroundColor: 'rgba(0, 167, 225, 0.8)', // 瑞幻蓝半透明
-                        borderRadius: '3px',
-                        transition: 'width 0.3s ease'
-                      }} />
-                    </div>
-                  </>
-                );
-              })()}
+              <div style={{
+                width: '100%',
+                height: '6px',
+                backgroundColor: 'transparent',
+                borderRadius: '3px',
+                overflow: 'hidden',
+                border: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}`,
+              }}>
+                <div 
+                  style={{
+                    height: '100%',
+                    backgroundColor: isDark ? '#0a84ff' : '#06c',
+                    width: segmentProgressWidth,
+                    borderRadius: '3px',
+                    transition: 'width 0.3s ease, background-color 0.3s ease'
+                  }}
+                />
+              </div>
             </div>
             
             {/* 添加简洁的文本导航控件 */}
@@ -2858,7 +2732,13 @@ export default function Home() {
           </div>
           
           <div style={styles.textContent}>
-            {formattedText[currentIndex]}
+            <div id={`sentence-${currentIndex}`} style={{
+              transition: 'background-color 0.5s ease',
+              padding: '8px',
+              borderRadius: '4px'
+            }}>
+              {formattedText[currentIndex]}
+            </div>
           </div>
           
           {/* 移动设备操作提示，3秒后淡出 */}
@@ -2874,9 +2754,9 @@ export default function Home() {
             bottom: 0,
             left: 0,
             height: '3px', // 减小高度
-            backgroundColor: `${getProgressColor(calculateSegmentInRemainingPercentage())}cc`, // 添加透明度
+            backgroundColor: isDark ? '#0a84ff' : '#06c',
             transition: 'width 0.3s ease, background-color 0.3s ease',
-            width: progressWidth,
+            width: segmentProgressWidth,
             boxShadow: '0 0 3px rgba(0,0,0,0.1)', // 添加微妙阴影
           }}
         />
@@ -3177,13 +3057,22 @@ export default function Home() {
                     {/* Action Buttons */} 
                     <div style={styles.gridItemActions}>
                         <button
-                          onClick={(e) => { e.stopPropagation(); readText(index); }} // Prevent item click when clicking button
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            loadSavedText(index);
+                            // 加载文本后切换到阅读模式
+                            setTimeout(() => {
+                              if (!isReading) {
+                                toggleReadingMode();
+                              }
+                            }, 100);
+                          }}
                           style={styles.gridActionButton(isDark)}
                         >
                           阅读
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); deleteText(index); }} // Prevent item click
+                          onClick={(e) => { e.stopPropagation(); deleteSavedText(e, index); }} // Prevent item click
                           style={{...styles.gridActionButton(isDark), ...styles.deleteButton(isDark)}}
                         >
                           删除
@@ -3234,6 +3123,8 @@ export default function Home() {
           isSearching={isSearching}
           error={error}
           isDark={isDark}
+          originalIndex={searchStartIndex}
+          onJumpToSentence={handleJumpToSentence}
         />
       )}
       
@@ -3471,7 +3362,10 @@ export default function Home() {
         
         {/* 搜索按钮 */}
         <button
-          onClick={() => setIsSearchModalOpen(true)}
+          onClick={() => {
+            setSearchStartIndex(currentIndex); // 记录当前索引
+            setIsSearchModalOpen(true);
+          }}
           style={{
             padding: '8px 16px',
             backgroundColor: isDark ? '#2c2c2e' : '#f0f0f0',
@@ -3488,10 +3382,7 @@ export default function Home() {
           🔍
         </button>
       </div>
-    </div>
-  );
-}
-
+      
       {/* 隐藏的文件输入框，用于上传封面图片 */}
       <input 
         type="file"

@@ -17,7 +17,6 @@ const splitIntoSentences = (text) => {
     }, [])
     .filter(s => s.trim());
 };
-
 // 计算当前段落的进度，针对不同段落有不同的最大值
 // totalRead: 已读总句子数
 // goal: 总目标句子数
@@ -29,43 +28,47 @@ const calculateSteppedProgress = (totalRead, goal) => {
   // 如果目标为0，避免除以0的错误
   if (goal === 0) return 0;
   
-  // 计算每个段落的大小（总目标的1/4）
-  const segmentSize = Math.ceil(goal / 4);
+  // 固定每段为25句
+  const fixedSegmentSize = 25;
   
-  // 确定当前在第几个段落 (0-3)
-  const currentSegment = Math.floor(totalRead / segmentSize);
+  // 确定当前在第几个段落 (0-3)，每25句为一个段落
+  const currentSegment = Math.min(Math.floor(totalRead / fixedSegmentSize), 3);
   
   // 获取当前段落内已读句子数
-  const readInCurrentSegment = totalRead % segmentSize;
+  const readInCurrentSegment = totalRead % fixedSegmentSize;
   
-  // 当前段落的最大句子数（处理最后一个段落可能不足segmentSize的情况）
-  const currentSegmentMaxSize = Math.min(segmentSize, goal - currentSegment * segmentSize);
+  // 根据当前段落确定最大百分比
+  let maxPercentage;
+  switch(currentSegment) {
+    case 0: maxPercentage = 25; break;  // 第一段25句：最高25%
+    case 1: maxPercentage = 50; break;  // 第二段25句：最高50%
+    case 2: maxPercentage = 75; break;  // 第三段25句：最高75%
+    case 3: maxPercentage = 100; break; // 第四段25句及以上：最高100%
+    default: maxPercentage = 25;
+  }
   
-  // 每个段落的基础百分比
-  const basePercentage = currentSegment * 25;
-  
-  // 当前段落内的增量百分比
-  const incrementPercentage = (readInCurrentSegment / currentSegmentMaxSize) * 25;
-  
-  // 返回总百分比 = 基础百分比 + 当前段落内的增量百分比
-  return basePercentage + incrementPercentage;
+  // 计算当前段落内的进度百分比
+  return (readInCurrentSegment / fixedSegmentSize) * maxPercentage;
 };
 
 // 获取当前位于哪个段落 (1-4)
 const getCurrentSegmentNumber = (totalRead, goal) => {
-  const segmentSize = Math.ceil(goal / 4);
-  return Math.min(Math.floor(totalRead / segmentSize) + 1, 4);  // 1-4
+  // 固定每段为25句
+  const fixedSegmentSize = 25;
+  return Math.min(Math.floor(totalRead / fixedSegmentSize) + 1, 4);
 };
 
 // 获取当前段落内读了多少句
 const getReadInCurrentSegment = (totalRead, goal) => {
-  const segmentSize = Math.ceil(goal / 4);
-  return totalRead % segmentSize;
+  // 固定每段为25句
+  const fixedSegmentSize = 25;
+  return totalRead % fixedSegmentSize;
 };
 
 // 获取当前段落大小
 const getCurrentSegmentSize = (goal) => {
-  return Math.ceil(goal / 4);
+  // 固定每段为25句
+  return 25;
 };
 
 export default function Home() {
@@ -1051,7 +1054,7 @@ export default function Home() {
     
     setLastPositions(adjustedPositions);
     localStorage.setItem('lastPositions', JSON.stringify(adjustedPositions));
-    
+
     // 如果删除的是当前选中的文本，清空选择
     if (selectedSavedText === index) {
       setSelectedSavedText(null);
