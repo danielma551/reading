@@ -1,3 +1,4 @@
+// 添加一个小的更新
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
 import SearchModal from '../components/SearchModal'; 
@@ -2284,7 +2285,7 @@ export default function Home() {
                   backgroundColor: isDark ? '#0a84ff' : '#06c',
                   width: segmentProgressWidth,
                   borderRadius: '3px',
-                  transition: 'width 0.3s ease, background-color 0.3s ease'
+                  transition: 'width 0.3s ease',
                 }}
               />
             </div>
