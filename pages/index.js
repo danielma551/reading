@@ -779,7 +779,7 @@ export default function Home() {
       setShowSaveConfirmation(true);
       setTimeout(() => {
         setShowSaveConfirmation(false);
-      }, 1500); // 1.5秒后自动隐藏确认状态
+      }, 200); // 0.2秒后自动隐藏确认状态
     } else {
       // 保存失败
       alert('保存句子失败，请重试');
@@ -2284,7 +2284,7 @@ export default function Home() {
                   backgroundColor: isDark ? '#0a84ff' : '#06c',
                   width: segmentProgressWidth,
                   borderRadius: '3px',
-                  transition: 'width 0.3s ease, background-color 0.3s ease'
+                  transition: 'width 0.3s ease',
                 }}
               />
             </div>
