@@ -6,7 +6,7 @@ import SearchModal from '../components/SearchModal';
 const splitIntoSentences = (text) => {
   if (!text) return [];
   // 使用更可靠的正则表达式匹配中文和英文的句子结束符，并保留结束符
-  return text
+  let sentences = text
     .split(/([，。？！；])/g)
     .reduce((acc, curr, i, arr) => {
       if (i % 2 === 0) {
@@ -16,7 +16,22 @@ const splitIntoSentences = (text) => {
       return acc;
     }, [])
     .filter(s => s.trim());
+  
+  // 添加隔行效果：处理问号、句号、感叹号和分号
+  const result = [];
+  for (const sentence of sentences) {
+    result.push(sentence);
+    // 如果句子以问号、句号、感叹号或分号结尾，添加一个空行
+    if (sentence.endsWith('？') || sentence.endsWith('。') || 
+        sentence.endsWith('！') || sentence.endsWith('；')) {
+      result.push(''); // 添加空行
+    }
+  }
+  
+  // 过滤掉连续的空行
+  return result.filter((s, i, arr) => !(s === '' && arr[i - 1] === ''));
 };
+
 // 计算当前段落的进度，针对不同段落有不同的最大值
 // totalRead: 已读总句子数
 // goal: 总目标句子数
