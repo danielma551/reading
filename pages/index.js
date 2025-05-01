@@ -29,33 +29,33 @@ const calculateSteppedProgress = (totalRead, goal) => {
   if (goal === 0) return 0;
   
   // 固定每段为25句
-  const fixedSegmentSize = 25;
+  const segmentSize = 25;
   
-  // 确定当前在第几个段落 (0-3)，每25句为一个段落
-  const currentSegment = Math.min(Math.floor(totalRead / fixedSegmentSize), 3);
+  // 确定当前在第几个段落 (从0开始)
+  const currentSegmentIndex = Math.floor(totalRead / segmentSize);
   
-  // 获取当前段落内已读句子数
-  const readInCurrentSegment = totalRead % fixedSegmentSize;
+  // 当前段落内已读句子数 (0-24)
+  const readInCurrentSegment = totalRead % segmentSize;
   
-  // 根据当前段落确定最大百分比
-  let maxPercentage;
-  switch(currentSegment) {
-    case 0: maxPercentage = 25; break;  // 第一段25句：最高25%
-    case 1: maxPercentage = 50; break;  // 第二段25句：最高50%
-    case 2: maxPercentage = 75; break;  // 第三段25句：最高75%
-    case 3: maxPercentage = 100; break; // 第四段25句及以上：最高100%
-    default: maxPercentage = 25;
+  // 如果readInCurrentSegment为0且totalRead不为0，说明刚好读完一段，返回0%
+  if (readInCurrentSegment === 0 && totalRead > 0) {
+    return 0;
   }
   
-  // 计算当前段落内的进度百分比
-  return (readInCurrentSegment / fixedSegmentSize) * maxPercentage;
+  // 每段结束时的目标进度百分比
+  const segmentEndPercent = Math.min(((currentSegmentIndex + 1) * segmentSize / goal) * 100, 100);
+  
+  // 计算段内的进度百分比
+  return (readInCurrentSegment / segmentSize) * segmentEndPercent;
 };
 
-// 获取当前位于哪个段落 (1-4)
+// 获取当前位于哪个段落 (1-N)
 const getCurrentSegmentNumber = (totalRead, goal) => {
   // 固定每段为25句
   const fixedSegmentSize = 25;
-  return Math.min(Math.floor(totalRead / fixedSegmentSize) + 1, 4);
+  // 计算总段数
+  const totalSegments = Math.max(1, Math.ceil(goal / fixedSegmentSize));
+  return Math.min(Math.floor(totalRead / fixedSegmentSize) + 1, totalSegments);
 };
 
 // 获取当前段落内读了多少句
@@ -69,6 +69,12 @@ const getReadInCurrentSegment = (totalRead, goal) => {
 const getCurrentSegmentSize = (goal) => {
   // 固定每段为25句
   return 25;
+};
+
+// 获取总段数
+const getTotalSegments = (goal) => {
+  const fixedSegmentSize = 25;
+  return Math.max(1, Math.ceil(goal / fixedSegmentSize));
 };
 
 export default function Home() {
