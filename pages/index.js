@@ -119,6 +119,7 @@ export default function Home() {
   const [searchStartIndex, setSearchStartIndex] = useState(0); // 新增：记录打开搜索时的句子索引
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false); // 新增：控制保存句子后的确认状态
   const [showXPopup, setShowXPopup] = useState(false); // 新增：X按钮弹出页面状态
+  const [weeklyReadingStats, setWeeklyReadingStats] = useState({}); // 新增：存储近七天阅读统计
   const fileInputRef = useRef(null); // Hidden file input ref
   const coverImageInputRef = useRef(null); // Hidden cover image input ref
   const [editingCoverIndex, setEditingCoverIndex] = useState(null); // Index of text being edited for cover image
@@ -339,6 +340,8 @@ export default function Home() {
       const savedGoalCompleted = localStorage.getItem('goalCompleted');
       // 新增：加载自定义字体
       const savedCustomFonts = localStorage.getItem('customFonts');
+      // 新增：加载近七天阅读统计数据
+      const savedWeeklyStats = localStorage.getItem('weeklyReadingStats');
       
       // 新增：加载保存的句子
       setSavedSentences(getSavedSentences());
@@ -414,6 +417,12 @@ export default function Home() {
             document.head.appendChild(style);
           }
         });
+      }
+      
+      // 新增：加载近七天阅读统计数据
+      if (savedWeeklyStats) {
+        const parsedStats = JSON.parse(savedWeeklyStats);
+        setWeeklyReadingStats(parsedStats);
       }
       
       // 尝试加载上次阅读的文本
@@ -1141,6 +1150,33 @@ export default function Home() {
           setGoalCompleted(true);
           localStorage.setItem('goalCompleted', 'true');
         }
+        
+        // 更新近七天阅读统计
+        const today = new Date().toISOString().split('T')[0]; // 获取当前日期，格式为 YYYY-MM-DD
+        const storedStats = localStorage.getItem('weeklyReadingStats');
+        let stats = storedStats ? JSON.parse(storedStats) : {};
+        
+        // 更新今天的阅读数量
+        stats[today] = (stats[today] || 0) + sentencesRead;
+        
+        // 只保留最近7天的数据
+        const cutoffDate = new Date();
+        cutoffDate.setDate(cutoffDate.getDate() - 7);
+        const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+        
+        // 过滤出最近7天的数据
+        const filteredStats = Object.entries(stats)
+          .filter(([date]) => date >= cutoffDateStr)
+          .reduce((obj, [date, count]) => {
+            obj[date] = count;
+            return obj;
+          }, {});
+        
+        // 保存到本地存储
+        localStorage.setItem('weeklyReadingStats', JSON.stringify(filteredStats));
+        
+        // 更新状态
+        setWeeklyReadingStats(filteredStats);
       }
     }
     setIsReading(!isReading);
@@ -1334,6 +1370,11 @@ export default function Home() {
                 setSessionStartIndex(importedData.lastPositions[importedData.lastReadTextIndex]);
               }
             }
+          }
+          
+          // 导入近七天阅读统计数据
+          if (importedData.weeklyReadingStats) {
+            setWeeklyReadingStats(importedData.weeklyReadingStats);
           }
           
           alert('数据导入成功！');
@@ -3434,10 +3475,106 @@ export default function Home() {
             fontWeight: '500',
             color: isDark ? '#ffffff' : '#333333'
           }}>
-            今天已阅读 {todayCompletedSentences} 句
+            {selectedSavedText 
+              ? `《${savedTexts[selectedSavedText].name}》已阅读 ${currentIndex} 句` 
+              : `今天已阅读 ${todayCompletedSentences} 句`}
+          </div>
+          <div style={{
+            fontSize: '16px',
+            color: isDark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(0, 0, 0, 0.6)'
+          }}>
+            {new Date().toLocaleDateString('zh-CN', {year: 'numeric', month: 'long', day: 'numeric'})}
+          </div>
+          {/* 近七天阅读数据 */}
+          <div style={{
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <div style={{
+              fontSize: '16px',
+              fontWeight: '500',
+              color: isDark ? '#ffffff' : '#333333',
+              marginBottom: '5px'
+            }}>
+              近七天阅读数据
+            </div>
+            {Object.entries(weeklyReadingStats)
+              .sort((a, b) => b[0].localeCompare(a[0])) // 按日期降序排序
+              .map(([date, count]) => (
+                <div key={date} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  width: '80%',
+                  padding: '5px 10px',
+                  backgroundColor: isDark ? 'rgba(45, 45, 50, 0.5)' : 'rgba(240, 240, 245, 0.5)',
+                  borderRadius: '8px'
+                }}>
+                  <span style={{ color: isDark ? '#ffffff' : '#333333' }}>
+                    {new Date(date).toLocaleDateString('zh-CN', {month: 'short', day: 'numeric'})}
+                  </span>
+                  <span style={{ 
+                    color: isDark ? '#0a84ff' : '#0066cc',
+                    fontWeight: '500'
+                  }}>
+                    {count} 句
+                  </span>
+                </div>
+              ))}
           </div>
         </div>
       )}
     </div>
   );
 }
+
+// 保存当前日期的阅读句子数到本地存储
+const updateTodayReadingStats = (sentencesRead) => {
+  try {
+    // 获取当前日期
+    const today = new Date().toISOString().split('T')[0]; // 格式: YYYY-MM-DD
+    
+    // 从本地存储加载现有的统计数据
+    const storedStats = localStorage.getItem('weeklyReadingStats');
+    let stats = storedStats ? JSON.parse(storedStats) : {};
+    
+    // 更新今天的阅读数量
+    stats[today] = (stats[today] || 0) + sentencesRead;
+    
+    // 只保留最近7天的数据
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 7);
+    const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+    
+    // 过滤出最近7天的数据
+    const filteredStats = Object.entries(stats)
+      .filter(([date]) => date >= cutoffDateStr)
+      .reduce((obj, [date, count]) => {
+        obj[date] = count;
+        return obj;
+      }, {});
+    
+    // 保存到本地存储
+    localStorage.setItem('weeklyReadingStats', JSON.stringify(filteredStats));
+    
+    // 更新状态
+    setWeeklyReadingStats(filteredStats);
+  } catch (error) {
+    console.error('更新阅读统计时出错:', error);
+  }
+};
+
+// 加载近七天的阅读统计数据
+const loadWeeklyReadingStats = () => {
+  try {
+    const storedStats = localStorage.getItem('weeklyReadingStats');
+    if (storedStats) {
+      const stats = JSON.parse(storedStats);
+      setWeeklyReadingStats(stats);
+    }
+  } catch (error) {
+    console.error('加载阅读统计时出错:', error);
+  }
+};
