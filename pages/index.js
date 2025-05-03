@@ -3429,6 +3429,13 @@ export default function Home() {
           onClick={() => setShowXPopup(false)}
         >
           {/* 空白页面内容区域 */}
+          <div style={{
+            fontSize: '18px',
+            fontWeight: '500',
+            color: isDark ? '#ffffff' : '#333333'
+          }}>
+            今天已阅读 {todayCompletedSentences} 句
+          </div>
         </div>
       )}
     </div>
