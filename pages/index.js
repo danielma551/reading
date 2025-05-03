@@ -2521,6 +2521,8 @@ export default function Home() {
               alignItems: 'center',
               marginBottom: '10px'
             }}>
+
+            {/*
               <div style={{
                 fontSize: '12px',
                 fontWeight: '600',
@@ -2528,7 +2530,8 @@ export default function Home() {
               }}>
                 阅读进度: {calculateSessionProgress()} / {readingGoal - todayCompletedSentences} 句 (总进度: {totalReadCount} / {readingGoal} 句, 第{currentSegmentNum}段: {readInSegment} / {currentSegmentSize} 句, {segmentPercentage.toFixed(1)}%)
               </div>
-              
+              */}
+
               <div style={{
                 display: 'flex',
                 gap: '8px'
@@ -2809,7 +2812,7 @@ export default function Home() {
         <div style={styles.card}>
           <div style={{
             display: 'flex',
-            justifyContent: 'space-between',
+            justifyContent: 'flex-end', // Changed from 'space-between'
             alignItems: 'center',
             marginBottom: '20px'
           }}>
