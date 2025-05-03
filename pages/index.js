@@ -2517,7 +2517,7 @@ export default function Home() {
             <div style={{
               width: '100%',
               display: 'flex',
-              justifyContent: 'space-between',
+              justifyContent: 'flex-end',
               alignItems: 'center',
               marginBottom: '10px'
             }}>
