@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 
-const SearchPanel = ({ isDark, onSelect }) => {
+export default function SearchPanel({ isDark, onSelect }) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -145,6 +145,4 @@ const SearchPanel = ({ isDark, onSelect }) => {
             )}
         </div>
     );
-};
-
-export default SearchPanel;
+}

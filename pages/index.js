@@ -118,6 +118,7 @@ export default function Home() {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); // 新增：控制搜索模态框的状态
   const [searchStartIndex, setSearchStartIndex] = useState(0); // 新增：记录打开搜索时的句子索引
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false); // 新增：控制保存句子后的确认状态
+  const [showXPopup, setShowXPopup] = useState(false); // 新增：X按钮弹出页面状态
   const fileInputRef = useRef(null); // Hidden file input ref
   const coverImageInputRef = useRef(null); // Hidden cover image input ref
   const [editingCoverIndex, setEditingCoverIndex] = useState(null); // Index of text being edited for cover image
@@ -3081,6 +3082,12 @@ export default function Home() {
                           阅读
                         </button>
                         <button
+                          onClick={(e) => { e.stopPropagation(); setShowXPopup(true); }}
+                          style={styles.gridActionButton(isDark)}
+                        >
+                          X
+                        </button>
+                        <button
                           onClick={(e) => { e.stopPropagation(); deleteSavedText(e, index); }} // Prevent item click
                           style={{...styles.gridActionButton(isDark), ...styles.deleteButton(isDark)}}
                         >
@@ -3400,6 +3407,30 @@ export default function Home() {
         onChange={handleFileSelected}
         accept="image/*"
       />
+      
+      {/* X按钮弹出的四分之一空白页面 */}
+      {showXPopup && (
+        <div 
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            width: '100%',
+            height: '25%',
+            backgroundColor: isDark ? 'rgba(30, 30, 30, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+            zIndex: 1000,
+            boxShadow: '0px -4px 10px rgba(0, 0, 0, 0.1)',
+            borderTopLeftRadius: '16px',
+            borderTopRightRadius: '16px',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}
+          onClick={() => setShowXPopup(false)}
+        >
+          {/* 空白页面内容区域 */}
+        </div>
+      )}
     </div>
   );
 }
