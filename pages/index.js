@@ -847,6 +847,16 @@ export default function Home() {
     }
   };
 
+  // 新增：从搜索结果跳转到指定的句子位置
+  const handleJumpToSentence = (index) => {
+    // 确保索引有效
+    if (index >= 0 && index < formattedText.length) {
+      setCurrentIndex(index);
+      // 关闭搜索模态框
+      setShowSearch(false);
+    }
+  };
+
   const startNewSession = () => {
     setSessionStartIndex(currentIndex);
   };
