@@ -2609,6 +2609,29 @@ export default function Home() {
                   {showSaveConfirmation ? '✅ 保存成功' : '保存句子'}
                 </button>
                 
+                {/* 添加搜索按钮 */}
+                <button
+                  onClick={() => {
+                    setSearchStartIndex(currentIndex); // 记录当前索引
+                    setIsSearchModalOpen(true);
+                  }}
+                  style={{
+                    border: 'none',
+                    background: isDark ? '#ff9f0a' : '#ff9500',
+                    color: '#ffffff',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    padding: '4px 8px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  🔍 搜索
+                </button>
+                
                 {/* 添加查看笔记按钮 */}
                 <button
                   onClick={() => setShowNotebook(true)}
@@ -2846,6 +2869,23 @@ export default function Home() {
           onChange={handleFileSelected}
           accept="image/*"
         />
+        
+        {/* 添加搜索模态框 */}
+        {isSearchModalOpen && (
+          <SearchModal
+            isOpen={isSearchModalOpen}
+            onClose={() => setIsSearchModalOpen(false)}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            handleSearch={handleSearch}
+            searchResults={searchResults}
+            isSearching={isSearching}
+            error={error}
+            isDark={isDark}
+            originalIndex={searchStartIndex}
+            onJumpToSentence={handleJumpToSentence}
+          />
+        )}
       </div>
     );
   }
