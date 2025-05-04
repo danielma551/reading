@@ -139,59 +139,77 @@ export default function Home() {
     setError(null); // 清空旧错误
 
     try {
-      // 直接从 state 读取 savedTexts
-      const localResults = savedTexts
-        .map(textItem => {
+      // 使用setTimeout来避免UI卡顿，将搜索操作放入下一个事件循环
+      setTimeout(() => {
+        // 直接从 state 读取 savedTexts
+        const localResults = [];
+        const maxResultsPerDocument = 10; // 每个文档最多显示10个结果
+        const maxTotalResults = 50; // 总共最多显示50个结果
+        let totalResults = 0;
+
+        for (const textItem of savedTexts) {
+          // 跳过无效数据
           if (!textItem || typeof textItem.content !== 'string' || typeof textItem.name !== 'string') {
             console.warn('Skipping invalid text item in savedTexts:', textItem);
-            return null;
+            continue;
           }
+
+          // 如果结果已经足够多，就停止搜索
+          if (totalResults >= maxTotalResults) break;
 
           const contentLower = textItem.content.toLowerCase();
           const nameLower = textItem.name.toLowerCase();
 
           // 初步检查文档内容或名称是否包含关键词
           if (contentLower.includes(query) || nameLower.includes(query)) {
-            // 切分文档内容为句子
+            // 切分文档内容为句子，但对大文档做一些优化处理
             const allSentences = splitIntoSentences(textItem.content);
-
+            
             // 查找匹配的句子并记录其索引位置
             const matchingSentencesWithPositions = [];
             
-            allSentences.forEach((sentence, index) => {
+            // 移除对遍历次数的限制，检查所有句子
+            for (let index = 0; index < allSentences.length; index++) {
+              const sentence = allSentences[index];
               if (typeof sentence === 'string' && sentence.toLowerCase().includes(query)) {
                 matchingSentencesWithPositions.push({
                   text: sentence,
                   position: index // 记录句子在原文中的索引位置
                 });
+                
+                // 限制每个文档的结果数
+                if (matchingSentencesWithPositions.length >= maxResultsPerDocument) {
+                  break;
+                }
               }
-            });
+            }
 
             // 如果找到了匹配的句子，则返回结果对象
             if (matchingSentencesWithPositions.length > 0) {
-              return {
+              localResults.push({
                 doc_id: textItem.name,
                 sentences: matchingSentencesWithPositions // 包含所有匹配句子及其位置的数组
-              };
+              });
+              
+              totalResults += matchingSentencesWithPositions.length;
             }
           }
-          return null; // 如果文档不匹配或没有匹配句子，返回null
-        })
-        .filter(result => result !== null); // 过滤掉所有null结果
+        }
 
-      setSearchResults(localResults); // 更新搜索结果状态
+        setSearchResults(localResults); // 更新搜索结果状态
 
-      // 如果没有找到任何结果，设置提示信息
-      if (localResults.length === 0) {
-        // setError('没有在本地保存的文本中找到包含该词的句子。'); // 可以取消错误提示，让 SearchModal 显示默认消息
-      }
-
+        // 如果没有找到任何结果，设置提示信息
+        if (localResults.length === 0) {
+          // setError('没有在本地保存的文本中找到包含该词的句子。'); // 可以取消错误提示，让 SearchModal 显示默认消息
+        }
+        
+        setIsSearching(false); // 结束搜索状态
+      }, 0);
     } catch (err) { // 捕获处理过程中的错误
       console.error('前端搜索执行出错:', err);
       setError(`搜索时发生错误: ${err.message}`);
       setSearchResults([]);
-    } finally {
-      setIsSearching(false); // 结束搜索状态
+      setIsSearching(false); // 确保在错误情况下也会结束搜索状态
     }
   };
   // ============================
@@ -2705,7 +2723,7 @@ export default function Home() {
                     backgroundColor: isDark ? '#0a84ff' : '#06c',
                     width: segmentProgressWidth,
                     borderRadius: '3px',
-                    transition: 'width 0.3s ease, background-color 0.3s ease'
+                    transition: 'width 0.3s ease',
                   }}
                 />
               </div>
@@ -3121,8 +3139,10 @@ export default function Home() {
                           }}
                           onError={(e) => { // Optional: handle image load error
                             console.error("Error loading cover image:", item.coverImage);
-                            // Optionally clear the broken image data or show placeholder
-                            // e.target.style.display = 'none'; // Hide broken image icon
+                            // 替换为默认占位图标
+                            e.target.src = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 24 24" fill="none" stroke="%23999" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>';
+                            e.target.style.padding = '25%'; // 添加内边距使图标居中
+                            e.target.style.background = isDark ? '#333' : '#f0f0f0';
                           }}
                         />
                       ) : (
@@ -3443,7 +3463,7 @@ export default function Home() {
         <div style={{
           minWidth: '40px', // 保证宽度
           textAlign: 'center', // 居中显示
-          color: isDark ? '#ffffff' : '#000000',
+          color: isDark ? '#ffffff' : '#333333',
           fontSize: '14px'
         }}>
           {fontSize}px
