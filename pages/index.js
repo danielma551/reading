@@ -1167,47 +1167,52 @@ export default function Home() {
       setShowCelebration(false);
     } else {
       // 退出阅读模式
-      // 计算这次会话阅读了多少句
-      const sentencesRead = currentIndex - sessionStartIndex + 1;
-      if (sentencesRead > 0) {
-        // 更新今日已完成的句子数
-        const newCompleted = todayCompletedSentences + sentencesRead;
-        setTodayCompletedSentences(newCompleted);
-        localStorage.setItem('todayCompletedSentences', newCompleted.toString());
-        console.log(`本次阅读了${sentencesRead}句，今日总计：${newCompleted}句`);
-        
-        // 检查是否已达到目标
-        if (newCompleted >= readingGoal && !goalCompleted) {
-          setGoalCompleted(true);
-          localStorage.setItem('goalCompleted', 'true');
+      try {
+        // 计算这次会话阅读了多少句
+        const sentencesRead = currentIndex - sessionStartIndex + 1;
+        if (sentencesRead > 0) {
+          // 更新今日已完成的句子数
+          const newCompleted = todayCompletedSentences + sentencesRead;
+          setTodayCompletedSentences(newCompleted);
+          localStorage.setItem('todayCompletedSentences', newCompleted.toString());
+          console.log(`本次阅读了${sentencesRead}句，今日总计：${newCompleted}句`);
+          
+          // 检查是否已达到目标
+          if (newCompleted >= readingGoal && !goalCompleted) {
+            setGoalCompleted(true);
+            localStorage.setItem('goalCompleted', 'true');
+          }
+          
+          // 更新近七天阅读统计
+          const today = new Date().toISOString().split('T')[0]; // 获取当前日期，格式为 YYYY-MM-DD
+          const storedStats = localStorage.getItem('weeklyReadingStats');
+          let stats = storedStats ? JSON.parse(storedStats) : {};
+          
+          // 更新今天的阅读数量
+          stats[today] = (stats[today] || 0) + sentencesRead;
+          
+          // 只保留最近7天的数据
+          const cutoffDate = new Date();
+          cutoffDate.setDate(cutoffDate.getDate() - 7);
+          const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
+          
+          // 过滤出最近7天的数据
+          const filteredStats = Object.entries(stats)
+            .filter(([date]) => date >= cutoffDateStr)
+            .reduce((obj, [date, count]) => {
+              obj[date] = count;
+              return obj;
+            }, {});
+          
+          // 保存到本地存储
+          localStorage.setItem('weeklyReadingStats', JSON.stringify(filteredStats));
+          
+          // 更新状态
+          setWeeklyReadingStats(filteredStats);
         }
-        
-        // 更新近七天阅读统计
-        const today = new Date().toISOString().split('T')[0]; // 获取当前日期，格式为 YYYY-MM-DD
-        const storedStats = localStorage.getItem('weeklyReadingStats');
-        let stats = storedStats ? JSON.parse(storedStats) : {};
-        
-        // 更新今天的阅读数量
-        stats[today] = (stats[today] || 0) + sentencesRead;
-        
-        // 只保留最近7天的数据
-        const cutoffDate = new Date();
-        cutoffDate.setDate(cutoffDate.getDate() - 7);
-        const cutoffDateStr = cutoffDate.toISOString().split('T')[0];
-        
-        // 过滤出最近7天的数据
-        const filteredStats = Object.entries(stats)
-          .filter(([date]) => date >= cutoffDateStr)
-          .reduce((obj, [date, count]) => {
-            obj[date] = count;
-            return obj;
-          }, {});
-        
-        // 保存到本地存储
-        localStorage.setItem('weeklyReadingStats', JSON.stringify(filteredStats));
-        
-        // 更新状态
-        setWeeklyReadingStats(filteredStats);
+      } catch (error) {
+        console.error("处理“完成”按钮操作时发生错误:", error);
+        // 即使发生错误，我们依然希望尝试退出阅读模式
       }
     }
     setIsReading(!isReading);
