@@ -655,7 +655,10 @@ export default function Home() {
       { name: '米色', value: '#f8f5e4' },
       { name: '淡蓝', value: '#f0f5fa' },
       { name: '淡绿', value: '#f2f9f5' },
-      { name: '淡粉', value: '#fdf2f4' }
+      { name: '淡粉', value: '#fdf2f4' },
+      { name: '纸张', value: '#FDF5E6' },
+      { name: '护眼', value: '#F5F5DC' },
+      { name: '书页', value: '#FFF8DC' }
     ],
     dark: [
       { name: '默认', value: '#000000' },
@@ -2116,7 +2119,7 @@ export default function Home() {
       '&:hover': {
         transform: 'translateY(-3px)',
         boxShadow: isDark ? '0 6px 16px rgba(0, 0, 0, 0.4)' : '0 6px 16px rgba(0, 0, 0, 0.12)',
-      },
+      }
     }),
     gridItemImagePlaceholder: (isDark) => ({ // Placeholder for the book cover
       width: '100%',
