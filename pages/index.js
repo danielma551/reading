@@ -2310,6 +2310,202 @@ export default function Home() {
   // 段落进度条宽度
   const segmentProgressWidth = goalProgressWidth;
   
+  // 笔记本模态框(移到条件渲染外面，确保在任何模式下都可以显示)
+  const notebookModal = showNotebook && (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: '100%',
+      backgroundColor: getCurrentBackgroundColor(),
+      zIndex: 1000,
+      overflowY: 'auto',
+      padding: '20px'
+    }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '20px'
+      }}>
+        <div style={{
+          fontSize: '24px',
+          fontWeight: 'bold',
+          color: isDark ? '#f5f5f7' : '#1d1d1f'
+        }}>
+          我的笔记本
+        </div>
+        <div style={{
+          display: 'flex',
+          gap: '10px'
+        }}>
+          {/* 添加导出为TXT按钮 */}
+          {Array.isArray(savedSentences) && savedSentences.length > 0 && (
+            <button
+              onClick={exportNotebookToTxt}
+              style={{
+                border: 'none',
+                backgroundColor: isDark ? '#0a84ff' : '#007aff',
+                color: '#ffffff',
+                borderRadius: '8px',
+                padding: '8px 16px',
+                fontSize: '15px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px'
+              }}
+            >
+              <span style={{ fontSize: '14px' }}>📎</span> 
+              导出为TXT
+            </button>
+          )}
+          <button
+            onClick={() => setShowNotebook(false)}
+            style={{
+              border: 'none',
+              backgroundColor: isDark ? '#1c1c1e' : '#e5e5ea',
+              color: isDark ? '#f5f5f7' : '#1d1d1f',
+              borderRadius: '8px',
+              padding: '8px 16px',
+              fontSize: '15px',
+              fontWeight: '500',
+              cursor: 'pointer'
+            }}
+          >
+            关闭
+          </button>
+        </div>
+      </div>
+      
+      {Array.isArray(savedSentences) && savedSentences.length === 0 ? (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '50vh',
+          textAlign: 'center',
+          color: isDark ? '#8e8e93' : '#8e8e93'
+        }}>
+          <div style={{fontSize: '40px', marginBottom: '20px'}}>
+            📝
+          </div>
+          <div style={{
+            fontSize: '18px',
+            fontWeight: '600',
+            marginBottom: '10px',
+            color: isDark ? '#f5f5f7' : '#1d1d1f'
+          }}>
+            暂无收藏的句子
+          </div>
+          <div style={{fontSize: '14px'}}>
+            在阅读时点击“保存句子”按钮收藏喜欢的句子
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{
+            marginBottom: '20px',
+            fontSize: '14px',
+            color: isDark ? '#8e8e93' : '#8e8e93'
+          }}>
+            共 {Array.isArray(savedSentences) ? savedSentences.length : 0} 条收藏
+          </div>
+          {Array.isArray(savedSentences) && (() => {
+            // 将连续的句子分组
+            const sentenceGroups = groupConsecutiveSentences(savedSentences);
+            
+            return sentenceGroups.map((group, groupIndex) => {
+              // 格式化组内第一个句子的日期
+              const firstSentence = group[0];
+              const date = new Date(firstSentence.date);
+              const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+              
+              // 确定组合后的句子文本
+              const combinedText = group.map(s => s.text).join('\n\n');
+              
+              return (
+                <div key={`group-${groupIndex}-${firstSentence.id}`} style={{
+                  backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  marginBottom: '16px',
+                  boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)'
+                }}>
+                  <div style={{
+                    fontSize: '16px',
+                    lineHeight: '1.5',
+                    marginBottom: '10px',
+                    color: isDark ? '#f5f5f7' : '#1d1d1f'
+                  }}>
+                    {/* 使用白色空格来保持换行格式 */}
+                    {combinedText.split('\n').map((line, i) => (
+                      <span key={i}>
+                        {line}
+                        {i < combinedText.split('\n').length - 1 && <br />}
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '13px',
+                    color: isDark ? '#8e8e93' : '#8e8e93'
+                  }}>
+                    <div>
+                      来源: {firstSentence.source} 
+                      {group.length > 1 && ` | ${group.length} 条连续句子`} | {formattedDate}
+                      {firstSentence.position !== undefined && (
+                        <button
+                          onClick={() => jumpToSavedSentence(firstSentence.position, firstSentence.source)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: isDark ? '#0a84ff' : '#007aff',
+                            cursor: 'pointer',
+                            padding: '0 0 0 10px',
+                            fontSize: '13px',
+                            textDecoration: 'underline'
+                          }}
+                        >
+                          查看原文
+                        </button>
+                      )}
+                    </div>
+                    <div>
+                      {/* 删除整个组 */}
+                      <button 
+                        onClick={() => {
+                          // 依次删除组中所有句子
+                          if (window.confirm(`确定要删除这${group.length > 1 ? group.length + '条' : ''}收藏的句子吗？`)) {
+                            group.forEach(s => deleteSavedSentence(s.id));
+                          }
+                        }}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ff3b30',
+                          cursor: 'pointer',
+                          padding: 0,
+                          fontSize: '13px'
+                        }}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            });
+          })()}
+        </>
+      )}
+    </div>
+  );
+
   // 苹果风格的阅读模式
   if (isReading && formattedText.length > 0) {
     return (
@@ -2998,6 +3194,9 @@ export default function Home() {
             onJumpToSentence={handleJumpToSentence}
           />
         )}
+        
+        {/* 添加笔记本模态框到阅读视图 */}
+        {notebookModal}
       </div>
     );
   }
@@ -3349,201 +3548,8 @@ export default function Home() {
         />
       )}
       
-      {/* 笔记本模态框 */}
-      {showNotebook && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          backgroundColor: getCurrentBackgroundColor(),
-          zIndex: 1000,
-          overflowY: 'auto',
-          padding: '20px'
-        }}>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '20px'
-          }}>
-            <div style={{
-              fontSize: '24px',
-              fontWeight: 'bold',
-              color: isDark ? '#f5f5f7' : '#1d1d1f'
-            }}>
-              我的笔记本
-            </div>
-            <div style={{
-              display: 'flex',
-              gap: '10px'
-            }}>
-              {/* 添加导出为TXT按钮 */}
-              {Array.isArray(savedSentences) && savedSentences.length > 0 && (
-                <button
-                  onClick={exportNotebookToTxt}
-                  style={{
-                    border: 'none',
-                    backgroundColor: isDark ? '#0a84ff' : '#007aff',
-                    color: '#ffffff',
-                    borderRadius: '8px',
-                    padding: '8px 16px',
-                    fontSize: '15px',
-                    fontWeight: '500',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px'
-                  }}
-                >
-                  <span style={{ fontSize: '14px' }}>📄</span> 
-                  导出为TXT
-                </button>
-              )}
-              <button
-                onClick={() => setShowNotebook(false)}
-                style={{
-                  border: 'none',
-                  backgroundColor: isDark ? '#1c1c1e' : '#e5e5ea',
-                  color: isDark ? '#f5f5f7' : '#1d1d1f',
-                  borderRadius: '8px',
-                  padding: '8px 16px',
-                  fontSize: '15px',
-                  fontWeight: '500',
-                  cursor: 'pointer'
-                }}
-              >
-                关闭
-              </button>
-            </div>
-          </div>
-          
-          {Array.isArray(savedSentences) && savedSentences.length === 0 ? (
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '50vh',
-              textAlign: 'center',
-              color: isDark ? '#8e8e93' : '#8e8e93'
-            }}>
-              <div style={{fontSize: '40px', marginBottom: '20px'}}>
-                📝
-              </div>
-              <div style={{
-                fontSize: '18px',
-                fontWeight: '600',
-                marginBottom: '10px',
-                color: isDark ? '#f5f5f7' : '#1d1d1f'
-              }}>
-                暂无收藏的句子
-              </div>
-              <div style={{fontSize: '14px'}}>
-                在阅读时点击"保存句子"按钮收藏喜欢的句子
-              </div>
-            </div>
-          ) : (
-            <>
-              <div style={{
-                marginBottom: '20px',
-                fontSize: '14px',
-                color: isDark ? '#8e8e93' : '#8e8e93'
-              }}>
-                共 {Array.isArray(savedSentences) ? savedSentences.length : 0} 条收藏
-              </div>
-              {Array.isArray(savedSentences) && (() => {
-                // 将连续的句子分组
-                const sentenceGroups = groupConsecutiveSentences(savedSentences);
-                
-                return sentenceGroups.map((group, groupIndex) => {
-                  // 格式化组内第一个句子的日期
-                  const firstSentence = group[0];
-                  const date = new Date(firstSentence.date);
-                  const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
-                  
-                  // 确定组合后的句子文本
-                  const combinedText = group.map(s => s.text).join('\n\n');
-                  
-                  return (
-                    <div key={`group-${groupIndex}-${firstSentence.id}`} style={{
-                      backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
-                      borderRadius: '12px',
-                      padding: '16px',
-                      marginBottom: '16px',
-                      boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)'
-                    }}>
-                      <div style={{
-                        fontSize: '16px',
-                        lineHeight: '1.5',
-                        marginBottom: '10px',
-                        color: isDark ? '#f5f5f7' : '#1d1d1f'
-                      }}>
-                        {/* 使用白色空格来保持换行格式 */}
-                        {combinedText.split('\n').map((line, i) => (
-                          <span key={i}>
-                            {line}
-                            {i < combinedText.split('\n').length - 1 && <br />}
-                          </span>
-                        ))}
-                      </div>
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        fontSize: '13px',
-                        color: isDark ? '#8e8e93' : '#8e8e93'
-                      }}>
-                        <div>
-                          来源: {firstSentence.source} 
-                          {group.length > 1 && ` | ${group.length} 条连续句子`} | {formattedDate}
-                          {firstSentence.position !== undefined && (
-                            <button
-                              onClick={() => jumpToSavedSentence(firstSentence.position, firstSentence.source)}
-                              style={{
-                                background: 'none',
-                                border: 'none',
-                                color: isDark ? '#0a84ff' : '#007aff',
-                                cursor: 'pointer',
-                                padding: '0 0 0 10px',
-                                fontSize: '13px',
-                                textDecoration: 'underline'
-                              }}
-                            >
-                              查看原文
-                            </button>
-                          )}
-                        </div>
-                        <div>
-                          {/* 删除整个组 */}
-                          <button 
-                            onClick={() => {
-                              // 依次删除组中所有句子
-                              if (window.confirm(`确定要删除这${group.length > 1 ? group.length + '条' : ''}收藏的句子吗？`)) {
-                                group.forEach(s => deleteSavedSentence(s.id));
-                              }
-                            }}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#ff3b30',
-                              cursor: 'pointer',
-                              padding: 0,
-                              fontSize: '13px'
-                            }}
-                          >
-                            删除
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                });
-              })()}
-            </>
-          )}
-        </div>
-      )}
+      {/* 笔记本模态框 - 使用已定义的notebookModal变量 */}
+      {notebookModal}
       
       {/* 顶部操作按钮 */}
       <div style={{
