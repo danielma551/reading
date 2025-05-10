@@ -2328,16 +2328,22 @@ export default function Home() {
         transform: 'scale(1)',
         transition: 'opacity 0.3s ease-out, transform 0.3s ease-out'
       }}
-      // 使用ref来触发动画
+      // 使用ref + 状态标记来触发动画，确保只在首次显示时触发
       ref={(el) => {
-        if (el && showNotebook) {
+        // 使用数据属性来记录动画是否已执行
+        if (el && showNotebook && !el.dataset.animationDone) {
+          // 标记动画已完成，避免重复触发
+          el.dataset.animationDone = 'true';
+          
           // 使用setTimeout来触发动画
           el.style.opacity = 0;
           el.style.transform = 'scale(0.95)';
-          setTimeout(() => {
-            el.style.opacity = 1;
-            el.style.transform = 'scale(1)';
-          }, 10);
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              el.style.opacity = 1;
+              el.style.transform = 'scale(1)';
+            });
+          });
         }
       }}
     >
