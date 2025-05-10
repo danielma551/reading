@@ -792,29 +792,35 @@ export default function Home() {
       return;
     }
     
-    // 获取当前句子
-    const sentence = formattedText[currentIndex];
-    
-    // 获取当前文本的名称
-    const source = savedTexts.length > 0 && selectedSavedText !== null 
-      ? savedTexts[selectedSavedText].name 
-      : '未知来源';
-    
-    // 使用工具函数保存句子
-    const result = saveSentence(sentence, source, currentIndex);
-    
-    if (result.success) {
-      // 更新状态
-      setSavedSentences(getSavedSentences());
+    try {
+      // 获取当前句子
+      const sentence = formattedText[currentIndex];
       
-      // 显示确认状态，代替 alert
-      setShowSaveConfirmation(true);
-      setTimeout(() => {
-        setShowSaveConfirmation(false);
-      }, 1500); // 1.5秒后自动隐藏确认状态
-    } else {
-      // 保存失败
-      alert('保存句子失败，请重试');
+      // 获取当前文本的名称
+      const source = savedTexts.length > 0 && selectedSavedText !== null 
+        ? savedTexts[selectedSavedText].name 
+        : '未知来源';
+      
+      // 使用工具函数保存句子
+      const result = saveSentence(sentence, source, currentIndex);
+      
+      if (result.success) {
+        // 更新状态
+        setSavedSentences(getSavedSentences());
+        
+        // 显示确认状态，代替 alert
+        setShowSaveConfirmation(true);
+        setTimeout(() => {
+          setShowSaveConfirmation(false);
+        }, 1500); // 1.5秒后自动隐藏确认状态
+      } else {
+        // 保存失败
+        alert('保存句子失败，请重试');
+      }
+    } catch (error) {
+      console.error('保存笔记时发生错误:', error);
+      // 显示友好的错误消息给用户
+      alert('保存笔记失败，可能是浏览器存储问题，请确保允许网站使用本地存储');
     }
   };
   
