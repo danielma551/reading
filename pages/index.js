@@ -2312,17 +2312,35 @@ export default function Home() {
   
   // 笔记本模态框(移到条件渲染外面，确保在任何模式下都可以显示)
   const notebookModal = showNotebook && (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      width: '100%',
-      height: '100%',
-      backgroundColor: getCurrentBackgroundColor(),
-      zIndex: 1000,
-      overflowY: 'auto',
-      padding: '20px'
-    }}>
+    <div 
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        backgroundColor: getCurrentBackgroundColor(),
+        zIndex: 1000,
+        overflowY: 'auto',
+        padding: '20px',
+        // 添加动画效果
+        opacity: 1,
+        transform: 'scale(1)',
+        transition: 'opacity 0.3s ease-out, transform 0.3s ease-out'
+      }}
+      // 使用ref来触发动画
+      ref={(el) => {
+        if (el && showNotebook) {
+          // 使用setTimeout来触发动画
+          el.style.opacity = 0;
+          el.style.transform = 'scale(0.95)';
+          setTimeout(() => {
+            el.style.opacity = 1;
+            el.style.transform = 'scale(1)';
+          }, 10);
+        }
+      }}
+    >
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -2942,7 +2960,21 @@ export default function Home() {
                 
                 {/* 添加查看笔记按钮 */}
                 <button
-                  onClick={() => setShowNotebook(true)}
+                  onClick={() => {
+                    // 在显示笔记本模态框前，先加载最新的笔记数据
+                    const notes = getSavedSentences();
+                    if (notes && typeof notes.then === 'function') {
+                      // 如果是 Promise（IndexedDB）
+                      notes.then(sentences => {
+                        setSavedSentences(sentences);
+                        setShowNotebook(true);
+                      });
+                    } else {
+                      // 如果是普通结果（localStorage）
+                      setSavedSentences(notes);
+                      setShowNotebook(true);
+                    }
+                  }}
                   style={{
                     border: 'none',
                     background: isDark ? '#30d158' : '#34c759',
