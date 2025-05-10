@@ -9,6 +9,14 @@
  */
 export function saveSentence(sentence, source, position) {
   try {
+    // 先检查 localStorage 是否可用
+    if (!isLocalStorageAvailable()) {
+      return {
+        success: false,
+        message: '浏览器存储不可用，请确保未开启隐私模式并允许网站使用本地存储',
+      };
+    }
+    
     // 从本地存储获取现有收藏
     const savedSentencesJson = localStorage.getItem('savedSentences');
     const savedSentences = savedSentencesJson ? JSON.parse(savedSentencesJson) : [];
@@ -25,8 +33,18 @@ export function saveSentence(sentence, source, position) {
     // 添加到收藏列表
     const updatedSentences = [...savedSentences, newSentence];
     
-    // 保存到本地存储
-    localStorage.setItem('savedSentences', JSON.stringify(updatedSentences));
+    // 使用 try-catch 单独包装存储操作，因为这是最容易失败的部分
+    try {
+      // 保存到本地存储
+      localStorage.setItem('savedSentences', JSON.stringify(updatedSentences));
+    } catch (storageError) {
+      console.error('保存到 localStorage 失败:', storageError);
+      return {
+        success: false,
+        message: '保存失败，存储空间可能已满或受限',
+        error: storageError
+      };
+    }
     
     return {
       success: true,
@@ -41,6 +59,23 @@ export function saveSentence(sentence, source, position) {
       message: '保存失败，请重试',
       error
     };
+  }
+}
+
+/**
+ * 检查 localStorage 是否可用
+ * @returns {boolean} localStorage 是否可用
+ */
+function isLocalStorageAvailable() {
+  try {
+    // 尝试存储和获取一个测试值
+    const testKey = '_test_localStorage_';
+    localStorage.setItem(testKey, testKey);
+    const result = localStorage.getItem(testKey) === testKey;
+    localStorage.removeItem(testKey);
+    return result;
+  } catch (e) {
+    return false;
   }
 }
 
