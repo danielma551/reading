@@ -1834,7 +1834,7 @@ export default function Home() {
       textAlign: 'center',
       maxWidth: '90%',
       fontWeight: '300',
-      lineHeight: '1.4',
+      lineHeight: '1.2',
       letterSpacing: '0.01em',
       transition: 'all 0.3s ease',
       userSelect: 'none', // 防止文本选择影响滑动
@@ -2424,8 +2424,8 @@ export default function Home() {
               const date = new Date(firstSentence.date);
               const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
               
-              // 确定组合后的句子文本
-              const combinedText = group.map(s => s.text).join('\n\n');
+              // 确定组合后的句子文本 - 先清理每个句子的空白行，然后用单个换行符连接
+              const combinedText = group.map(s => s.text.trim().replace(/\s*\n\s*/g, ' ')).join('\n');
               
               return (
                 <div key={`group-${groupIndex}-${firstSentence.id}`} style={{
