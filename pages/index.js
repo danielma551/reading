@@ -793,6 +793,9 @@ export default function Home() {
     }
     
     try {
+      // 显示保存中状态
+      setIsLoading(true);
+      
       // 获取当前句子
       const sentence = formattedText[currentIndex];
       
@@ -804,44 +807,120 @@ export default function Home() {
       // 使用工具函数保存句子
       const result = saveSentence(sentence, source, currentIndex);
       
-      if (result.success) {
-        // 更新状态
-        setSavedSentences(getSavedSentences());
-        
-        // 显示确认状态，代替 alert
-        setShowSaveConfirmation(true);
-        setTimeout(() => {
-          setShowSaveConfirmation(false);
-        }, 1500); // 1.5秒后自动隐藏确认状态
+      // 处理可能的 Promise 结果
+      if (result && typeof result.then === 'function') {
+        // 如果是 Promise，等待完成
+        result.then(promiseResult => {
+          handleSaveSentenceResult(promiseResult);
+          setIsLoading(false);
+        }).catch(error => {
+          console.error('保存笔记失败 (Promise):', error);
+          alert('保存笔记失败，请重试');
+          setIsLoading(false);
+        });
       } else {
-        // 保存失败
-        alert('保存句子失败，请重试');
+        // 如果是普通结果，直接处理
+        handleSaveSentenceResult(result);
+        setIsLoading(false);
       }
     } catch (error) {
       console.error('保存笔记时发生错误:', error);
       // 显示友好的错误消息给用户
       alert('保存笔记失败，可能是浏览器存储问题，请确保允许网站使用本地存储');
+      setIsLoading(false);
     }
   };
-  
+
+  // 处理保存结果的辅助函数
+  const handleSaveSentenceResult = (result) => {
+    if (result.success) {
+      // 如果用的是 IndexedDB，需要异步获取所有笔记
+      const notesResult = getSavedSentences();
+      
+      if (notesResult && typeof notesResult.then === 'function') {
+        // 如果是 Promise
+        notesResult.then(sentences => {
+          setSavedSentences(sentences);
+          
+          // 显示确认状态
+          setShowSaveConfirmation(true);
+          setTimeout(() => {
+            setShowSaveConfirmation(false);
+          }, 1500);
+        });
+      } else {
+        // 如果是普通结果
+        setSavedSentences(notesResult);
+        
+        // 显示确认状态
+        setShowSaveConfirmation(true);
+        setTimeout(() => {
+          setShowSaveConfirmation(false);
+        }, 1500);
+      }
+    } else {
+      // 保存失败
+      alert(result.message || '保存句子失败，请重试');
+    }
+  };
+
   // 删除收藏的句子
   const deleteSavedSentence = (id) => {
     if (!isClient) return;
     
     // 确认删除
     if (window.confirm('确定要删除这个收藏的句子吗？')) {
-      // 使用工具函数删除句子
-      const result = deleteSentence(id);
+      // 显示加载状态
+      setIsLoading(true);
       
-      if (result.success) {
-        // 更新状态
-        setSavedSentences(getSavedSentences());
-      } else {
+      try {
+        // 使用工具函数删除句子
+        const result = deleteSentence(id);
+        
+        // 处理可能的 Promise 结果
+        if (result && typeof result.then === 'function') {
+          // 如果是 Promise，等待完成
+          result.then(promiseResult => {
+            handleDeleteSentenceResult(promiseResult);
+            setIsLoading(false);
+          }).catch(error => {
+            console.error('删除笔记失败 (Promise):', error);
+            alert('删除失败，请重试');
+            setIsLoading(false);
+          });
+        } else {
+          // 如果是普通结果，直接处理
+          handleDeleteSentenceResult(result);
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error('删除笔记时发生错误:', error);
         alert('删除失败，请重试');
+        setIsLoading(false);
       }
     }
   };
-  
+
+  // 处理删除结果的辅助函数
+  const handleDeleteSentenceResult = (result) => {
+    if (result.success) {
+      // 如果用的是 IndexedDB，需要异步获取所有笔记
+      const notesResult = getSavedSentences();
+      
+      if (notesResult && typeof notesResult.then === 'function') {
+        // 如果是 Promise
+        notesResult.then(sentences => {
+          setSavedSentences(sentences);
+        });
+      } else {
+        // 如果是普通结果
+        setSavedSentences(notesResult);
+      }
+    } else {
+      alert(result.message || '删除失败，请重试');
+    }
+  };
+
   // 跳转到收藏句子的原始位置
   const jumpToSavedSentence = (position, source) => {
     if (!isClient) return;
@@ -3300,7 +3379,7 @@ export default function Home() {
               gap: '10px'
             }}>
               {/* 添加导出为TXT按钮 */}
-              {savedSentences.length > 0 && (
+              {Array.isArray(savedSentences) && savedSentences.length > 0 && (
                 <button
                   onClick={exportNotebookToTxt}
                   style={{
@@ -3339,7 +3418,7 @@ export default function Home() {
             </div>
           </div>
           
-          {savedSentences.length === 0 ? (
+          {Array.isArray(savedSentences) && savedSentences.length === 0 ? (
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -3371,9 +3450,9 @@ export default function Home() {
                 fontSize: '14px',
                 color: isDark ? '#8e8e93' : '#8e8e93'
               }}>
-                共 {savedSentences.length} 条收藏
+                共 {Array.isArray(savedSentences) ? savedSentences.length : 0} 条收藏
               </div>
-              {savedSentences.map((sentence) => {
+              {Array.isArray(savedSentences) && savedSentences.map((sentence) => {
                 // 格式化日期
                 const date = new Date(sentence.date);
                 const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
