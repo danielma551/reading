@@ -60,6 +60,65 @@ const getCurrentSegmentNumber = (totalRead, goal) => {
   return Math.min(Math.floor(totalRead / fixedSegmentSize) + 1, totalSegments);
 };
 
+// 根据当前位置计算进度条颜色，从红色到黄色再到瞎幸蓝色
+// readInSegment: 当前段内已读句子数，范围 0-24
+// isDark: 是否深色模式
+// 返回对应的颜色代码
+const getProgressBarColor = (readInSegment, isDark) => {
+  // 每段大小固定为25
+  const segmentSize = 25;
+  
+  // 如果超出范围，限制到有效范围内
+  const normalizedPosition = Math.min(Math.max(0, readInSegment), segmentSize - 1);
+  
+  // 计算进度百分比（0-1）
+  const progress = normalizedPosition / (segmentSize - 1);
+  
+  // 定义颜色区间：红色 -> 黄色 -> 瞎幸蓝色
+  // 瞎幸蓝色（深色模式和浅色模式）
+  const finalBlue = isDark ? '#0a84ff' : '#06c';
+  
+  if (progress < 0.5) {
+    // 红色到黄色的渐变（0-0.5）
+    // 将进度映射到 0-1 区间
+    const t = progress * 2;
+    
+    // RGB插值计算：红色(255,0,0) -> 黄色(255,255,0)
+    const r = 255;
+    const g = Math.round(255 * t);
+    const b = 0;
+    
+    return `rgb(${r}, ${g}, ${b})`;
+  } else {
+    // 黄色到瞎幸蓝色的渐变（0.5-1）
+    // 将进度映射到 0-1 区间
+    const t = (progress - 0.5) * 2;
+    
+    // 黄色(255,255,0)直接过渡到瞎幸蓝色
+    // 解析瞎幸蓝色的RGB值
+    let finalR, finalG, finalB;
+    
+    if (finalBlue === '#0a84ff') {
+      // 深色模式瞎幸蓝色
+      finalR = 10;
+      finalG = 132;
+      finalB = 255;
+    } else {
+      // 浅色模式瞎幸蓝色
+      finalR = 0;
+      finalG = 102;
+      finalB = 204;
+    }
+    
+    // RGB插值计算：黄色(255,255,0) -> 瞎幸蓝色
+    const r = Math.round(255 - (255 - finalR) * t);
+    const g = Math.round(255 - (255 - finalG) * t);
+    const b = Math.round(0 + finalB * t);
+    
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+};
+
 // 获取当前段落内读了多少句
 const getReadInCurrentSegment = (totalRead, goal) => {
   // 固定每段为25句
@@ -2296,7 +2355,8 @@ export default function Home() {
   const currentSegmentNum = Math.min(Math.floor(totalReadCount / Math.ceil(readingGoal / 4)) + 1, 4);
   
   // 当前段落内已读句子数
-  const readInSegment = totalReadCount % Math.ceil(readingGoal / 4);
+  // 修改计算方式，保证每段固定为25句，并且每个新段落都从0开始
+  const readInSegment = totalReadCount % 25; // 引入高固定值确保每25句重新开始颜色变化
   
   // 当前段落大小
   const currentSegmentSize = Math.min(Math.ceil(readingGoal / 4), readingGoal - (currentSegmentNum - 1) * Math.ceil(readingGoal / 4));
@@ -3048,10 +3108,10 @@ export default function Home() {
                 <div 
                   style={{
                     height: '100%',
-                    backgroundColor: isDark ? '#0a84ff' : '#06c',
+                    backgroundColor: getProgressBarColor(readInSegment, isDark),
                     width: segmentProgressWidth,
                     borderRadius: '3px',
-                    transition: 'width 0.3s ease',
+                    transition: 'width 0.3s ease, background-color 0.3s ease',
                   }}
                 />
               </div>
@@ -3184,7 +3244,7 @@ export default function Home() {
             bottom: 0,
             left: 0,
             height: '3px', // 减小高度
-            backgroundColor: isDark ? '#0a84ff' : '#06c',
+            backgroundColor: getProgressBarColor(readInSegment, isDark),
             transition: 'width 0.3s ease, background-color 0.3s ease',
             width: segmentProgressWidth,
             boxShadow: '0 0 3px rgba(0,0,0,0.1)', // 添加微妙阴影
