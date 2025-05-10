@@ -1,7 +1,8 @@
 // 添加一个小的更新
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
-import SearchModal from '../components/SearchModal'; 
+import SearchModal from '../components/SearchModal';
+import { groupConsecutiveSentences } from '../utils/sentence-grouper'; 
 
 // 辅助函数：将文本切分成句子（改进版，更健壮）
 const splitIntoSentences = (text) => {
@@ -3452,69 +3453,93 @@ export default function Home() {
               }}>
                 共 {Array.isArray(savedSentences) ? savedSentences.length : 0} 条收藏
               </div>
-              {Array.isArray(savedSentences) && savedSentences.map((sentence) => {
-                // 格式化日期
-                const date = new Date(sentence.date);
-                const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+              {Array.isArray(savedSentences) && (() => {
+                // 将连续的句子分组
+                const sentenceGroups = groupConsecutiveSentences(savedSentences);
                 
-                return (
-                  <div key={sentence.id} style={{
-                    backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
-                    borderRadius: '12px',
-                    padding: '16px',
-                    marginBottom: '16px',
-                    boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)'
-                  }}>
-                    <div style={{
-                      fontSize: '16px',
-                      lineHeight: '1.5',
-                      marginBottom: '10px',
-                      color: isDark ? '#f5f5f7' : '#1d1d1f'
+                return sentenceGroups.map((group, groupIndex) => {
+                  // 格式化组内第一个句子的日期
+                  const firstSentence = group[0];
+                  const date = new Date(firstSentence.date);
+                  const formattedDate = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`;
+                  
+                  // 确定组合后的句子文本
+                  const combinedText = group.map(s => s.text).join('\n\n');
+                  
+                  return (
+                    <div key={`group-${groupIndex}-${firstSentence.id}`} style={{
+                      backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      marginBottom: '16px',
+                      boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.1)'
                     }}>
-                      {sentence.text}
-                    </div>
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      fontSize: '13px',
-                      color: isDark ? '#8e8e93' : '#8e8e93'
-                    }}>
-                      <div>
-                        来源: {sentence.source} | {formattedDate}
-                        {sentence.position !== undefined && (
-                          <button
-                            onClick={() => jumpToSavedSentence(sentence.position, sentence.source)}
+                      <div style={{
+                        fontSize: '16px',
+                        lineHeight: '1.5',
+                        marginBottom: '10px',
+                        color: isDark ? '#f5f5f7' : '#1d1d1f'
+                      }}>
+                        {/* 使用白色空格来保持换行格式 */}
+                        {combinedText.split('\n').map((line, i) => (
+                          <span key={i}>
+                            {line}
+                            {i < combinedText.split('\n').length - 1 && <br />}
+                          </span>
+                        ))}
+                      </div>
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        fontSize: '13px',
+                        color: isDark ? '#8e8e93' : '#8e8e93'
+                      }}>
+                        <div>
+                          来源: {firstSentence.source} 
+                          {group.length > 1 && ` | ${group.length} 条连续句子`} | {formattedDate}
+                          {firstSentence.position !== undefined && (
+                            <button
+                              onClick={() => jumpToSavedSentence(firstSentence.position, firstSentence.source)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: isDark ? '#0a84ff' : '#007aff',
+                                cursor: 'pointer',
+                                padding: '0 0 0 10px',
+                                fontSize: '13px',
+                                textDecoration: 'underline'
+                              }}
+                            >
+                              查看原文
+                            </button>
+                          )}
+                        </div>
+                        <div>
+                          {/* 删除整个组 */}
+                          <button 
+                            onClick={() => {
+                              // 依次删除组中所有句子
+                              if (window.confirm(`确定要删除这${group.length > 1 ? group.length + '条' : ''}收藏的句子吗？`)) {
+                                group.forEach(s => deleteSavedSentence(s.id));
+                              }
+                            }}
                             style={{
                               background: 'none',
                               border: 'none',
-                              color: isDark ? '#0a84ff' : '#007aff',
+                              color: '#ff3b30',
                               cursor: 'pointer',
-                              padding: '0 0 0 10px',
-                              fontSize: '13px',
-                              textDecoration: 'underline'
+                              padding: 0,
+                              fontSize: '13px'
                             }}
                           >
-                            查看原文
+                            删除
                           </button>
-                        )}
+                        </div>
                       </div>
-                      <button 
-                        onClick={() => deleteSavedSentence(sentence.id)}
-                        style={{
-                          background: 'none',
-                          border: 'none',
-                          color: '#ff3b30',
-                          cursor: 'pointer',
-                          padding: 0,
-                          fontSize: '13px'
-                        }}
-                      >
-                        删除
-                      </button>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                });
+              })()}
             </>
           )}
         </div>
