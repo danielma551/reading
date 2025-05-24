@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>得到内容保存工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #0066cc;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .bookmarklet {
+            display: inline-block;
+            padding: 10px 15px;
+            background-color: #0066cc;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 20px 0;
+            cursor: move;
+        }
+        .bookmarklet:hover {
+            background-color: #0052a3;
+        }
+        .instructions {
+            background-color: #f8f9fa;
+            border-left: 4px solid #0066cc;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .steps {
+            counter-reset: step-counter;
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .steps li {
+            position: relative;
+            padding-left: 40px;
+            margin-bottom: 15px;
+        }
+        .steps li:before {
+            content: counter(step-counter);
+            counter-increment: step-counter;
+            position: absolute;
+            left: 0;
+            top: 0;
+            background-color: #0066cc;
+            color: white;
+            font-weight: bold;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 28px;
+        }
+        .note {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>得到内容保存工具</h1>
+    
+    <div class="instructions">
+        <p><strong>请将下方的按钮拖动到您的浏览器书签栏：</strong></p>
+        <a class="bookmarklet" href="javascript:(function(){var s=document.createElement('script');s.src='http://localhost:3001/dedao-bookmarklet.js?v='+new Date().getTime();document.body.appendChild(s);})();">保存到我的阅读网站</a>
+    </div>
+    
+    <h2>使用说明</h2>
+    <ol class="steps">
+        <li>将上面的蓝色按钮<strong>拖动</strong>到您的浏览器书签栏</li>
+        <li>打开得到平台上的专栏文章</li>
+        <li>点击您刚才添加的书签</li>
+        <li>在弹出的窗口中检查文章内容，然后点击"保存"</li>
+        <li>文章将自动保存到您的阅读网站</li>
+    </ol>
+    
+    <div class="note">
+        <p><strong>注意：</strong>使用此功能前，请确保您的阅读网站正在运行 (npm run dev)。如果您的网站部署在公网上，请更新书签中的URL。</p>
+    </div>
+</body>
+</html>

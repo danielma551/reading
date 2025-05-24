@@ -1072,73 +1072,99 @@ export default function Home() {
   };
 
   const formatText = (inputText) => {
-    if (!isClient || !inputText) return; // 服务器端渲染时不执行
+    if (!isClient) {
+      console.log('服务器端渲染，跳过文本格式化');
+      return [];
+    }
+    
+    if (!inputText) {
+      console.log('输入文本为空，跳过格式化');
+      setIsLoading(false);
+      return [];
+    }
     
     // 设置加载状态
     setIsLoading(true);
     
-    // 检查文本是否超大（可以调整这个阈值）
-    const isHugeText = inputText.length > 500000; // 约50万字符视为超大文本
-    
-    if (isHugeText) {
-      // 对于超大文本，使用批处理
-      console.log(`处理超大文本，长度：${inputText.length}字符`);
+    try {
+      // 检查文本是否超大（可以调整这个阈值）
+      const textLength = typeof inputText === 'string' ? inputText.length : 0;
+      const isHugeText = textLength > 500000; // 约50万字符视为超大文本
       
-      // 步骤1：将文本分成较小的块
-      const chunkSize = 100000; // 每10万字符一个块
-      const chunks = [];
-      for (let i = 0; i < inputText.length; i += chunkSize) {
-        chunks.push(inputText.slice(i, i + chunkSize));
-      }
-      
-      // 步骤2：逐块处理
-      let resultSentences = [];
-      let processedChunks = 0;
-      
-      function processNextChunk() {
-        if (processedChunks >= chunks.length) {
-          // 所有块处理完毕
-          setFormattedText(resultSentences);
-          setIsLoading(false);
-          return;
+      if (isHugeText) {
+        // 对于超大文本，使用批处理
+        console.log(`处理超大文本，长度：${textLength}字符`);
+        
+        // 步骤1：将文本分成较小的块
+        const chunkSize = 100000; // 每10万字符一个块
+        const chunks = [];
+        for (let i = 0; i < textLength; i += chunkSize) {
+          chunks.push(inputText.substring(i, i + chunkSize));
         }
         
-        setTimeout(() => {
-          const chunk = chunks[processedChunks];
+        // 步骤2：逐块处理文本
+        let processedChunks = 0;
+        let resultSentences = [];
+        
+        function processNextChunk() {
+          if (processedChunks >= chunks.length) {
+            // 所有块处理完毕
+            setFormattedText(resultSentences);
+            setIsLoading(false);
+            return;
+          }
           
-          // 处理当前块，使用统一的 splitIntoSentences 函数
-          const chunkSentences = splitIntoSentences(chunk);
-          
-          // 合并结果
-          resultSentences = resultSentences.concat(chunkSentences);
-          
-          // 更新进度
-          const progress = Math.round(((processedChunks + 1) / chunks.length) * 100);
-          console.log(`文本处理进度：${progress}%`);
-          
-          // 处理下一块
-          processedChunks++;
-          processNextChunk();
-        }, 0); // 使用零延迟也可以让UI有机会更新
-      }
-      
-      // 开始处理
-      processNextChunk();
-    } else {
-      // 对于普通大小的文本，使用setTimeout避免UI阻塞
-      setTimeout(() => {
-        try {
-          // 使用统一的 splitIntoSentences 函数
-          const sentences = splitIntoSentences(inputText);
-          
-          setFormattedText(sentences);
-        } catch (error) {
-          console.error('文本格式化失败:', error);
-        } finally {
-          // 完成后关闭加载状态
-          setIsLoading(false);
+          setTimeout(() => {
+            try {
+              const chunk = chunks[processedChunks];
+              
+              // 处理当前块，使用统一的 splitIntoSentences 函数
+              const chunkSentences = splitIntoSentences(chunk);
+              
+              // 合并结果
+              resultSentences = resultSentences.concat(chunkSentences);
+              
+              // 更新进度
+              const progress = Math.round(((processedChunks + 1) / chunks.length) * 100);
+              console.log(`文本处理进度：${progress}%`);
+              
+              // 处理下一块
+              processedChunks++;
+              processNextChunk();
+            } catch (error) {
+              console.error('处理文本块时出错:', error);
+              setIsLoading(false);
+            }
+          }, 0); // 使用零延迟也可以让UI有机会更新
         }
-      }, 10);
+        
+        // 开始处理
+        processNextChunk();
+        return [];
+      } else {
+        // 对于普通大小的文本，使用setTimeout避免UI阻塞
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            try {
+              // 使用统一的 splitIntoSentences 函数
+              const sentences = splitIntoSentences(inputText);
+              setFormattedText(sentences);
+              resolve(sentences);
+            } catch (error) {
+              console.error('文本格式化失败:', error);
+              setFormattedText([]);
+              resolve([]);
+            } finally {
+              // 完成后关闭加载状态
+              setIsLoading(false);
+            }
+          }, 10);
+        });
+      }
+    } catch (error) {
+      console.error('formatText函数执行出错:', error);
+      setIsLoading(false);
+      return [];
     }
   };
 
@@ -1197,8 +1223,20 @@ export default function Home() {
 
   const loadSavedText = (index) => {
     if (selectedSavedText === index) return; // 避免重复加载同一文本
-    
-    if (savedTexts[index]) {
+  
+    try {
+      // 检查索引是否有效
+      if (index === null || index === undefined || !Array.isArray(savedTexts) || index < 0 || index >= savedTexts.length) {
+        console.error(`无效的文本索引: ${index}，可用文本数量: ${savedTexts?.length || 0}`);
+        return;
+      }
+      
+      const textToLoad = savedTexts[index];
+      if (!textToLoad) {
+        console.error(`索引 ${index} 处找不到文本数据`);
+        return;
+      }
+      
       // 设置加载状态
       setIsLoading(true);
       
@@ -1207,19 +1245,38 @@ export default function Home() {
       
       // 延迟处理文本，让UI有机会更新
       setTimeout(() => {
-        setText(savedTexts[index].content);
-        formatText(savedTexts[index].content);
-        
-        // 恢复上次阅读位置
-        if (lastPositions[index] !== undefined) {
-          setCurrentIndex(lastPositions[index]);
-        } else {
-          setCurrentIndex(0);
+        try {
+          // 确保content存在
+          if (!textToLoad.content) {
+            console.error(`索引 ${index} 处的文本内容为空`);
+            textToLoad.content = ""; // 设置为空字符串而不是null/undefined
+          }
+          
+          setText(textToLoad.content);
+          
+          // 确保formatText得到处理结果后再设置索引
+          Promise.resolve(formatText(textToLoad.content)).then(() => {
+            // 恢复上次阅读位置
+            if (lastPositions[index] !== undefined) {
+              setCurrentIndex(lastPositions[index]);
+            } else {
+              setCurrentIndex(0);
+            }
+            
+            // 记录当前选择的文本
+            localStorage.setItem('lastReadTextIndex', index.toString());
+          }).catch(err => {
+            console.error('格式化文本后设置索引时出错:', err);
+            setIsLoading(false);
+          });
+        } catch (innerError) {
+          console.error('在延迟加载文本时出错:', innerError);
+          setIsLoading(false);
         }
-        
-        // 记录当前选择的文本
-        localStorage.setItem('lastReadTextIndex', index.toString());
       }, 50);
+    } catch (error) {
+      console.error('加载保存的文本时出错:', error);
+      setIsLoading(false);
     }
   };
 
@@ -3736,9 +3793,18 @@ export default function Home() {
       <input 
         type="file"
         ref={coverImageInputRef}
-        style={{ display: 'none' }}
+        style={{
+          position: 'absolute',
+          width: '1px', 
+          height: '1px',
+          opacity: 0,
+          overflow: 'hidden',
+          zIndex: -1,
+          pointerEvents: 'none'
+        }}
         onChange={handleFileSelected}
         accept="image/*"
+        capture="environment"
       />
       
       {/* X按钮弹出的四分之一空白页面 */}
