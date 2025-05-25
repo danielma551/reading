@@ -177,6 +177,14 @@ export default function Home() {
   const [error, setError] = useState(null); // New state for search error
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false); // 新增：控制搜索模态框的状态
   const [searchStartIndex, setSearchStartIndex] = useState(0); // 新增：记录打开搜索时的句子索引
+  
+  // 追加内容相关状态
+  const [isAppendModalOpen, setIsAppendModalOpen] = useState(false);
+  const [appendContent, setAppendContent] = useState('');
+  const [appendTitle, setAppendTitle] = useState('');
+  const [appendingToFile, setAppendingToFile] = useState(null);
+  const [isAppending, setIsAppending] = useState(false);
+  const [appendResult, setAppendResult] = useState(null);
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false); // 新增：控制保存句子后的确认状态
   const [showXPopup, setShowXPopup] = useState(false); // 新增：X按钮弹出页面状态
   const [weeklyReadingStats, setWeeklyReadingStats] = useState({}); // 新增：存储近七天阅读统计
@@ -1192,6 +1200,85 @@ export default function Home() {
       // 如果保存失败，确保关闭加载状态
       setIsLoading(false);
       return false;
+    }
+  };
+  
+  // 处理追加内容函数已经添加到下面
+  
+  // 处理追加内容
+  const handleAppendContent = async () => {
+    if (!appendContent.trim() || !appendingToFile) return;
+    
+    setIsAppending(true);
+    setAppendResult(null);
+    
+    try {
+      const response = await fetch('/api/append-to-text', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filename: appendingToFile.name,
+          content: appendContent.trim(),
+          title: appendTitle.trim() || undefined,
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        // 更新成功消息
+        setAppendResult({
+          success: true,
+          message: `成功追加了 ${result.addedContentLength || appendContent.length} 个字符到文件`,
+        });
+        
+        // 更新本地文件内容
+        const updatedTexts = [...savedTexts];
+        const fileIndex = updatedTexts.findIndex(text => text.name === appendingToFile.name);
+        
+        if (fileIndex >= 0) {
+          // 添加分隔符和新内容
+          const separator = '\n\n---\n\n';
+          const titlePrefix = appendTitle.trim() ? `【${appendTitle.trim()}】\n\n` : '';
+          const newContent = updatedTexts[fileIndex].content.endsWith('\n')
+            ? updatedTexts[fileIndex].content + separator + titlePrefix + appendContent.trim()
+            : updatedTexts[fileIndex].content + '\n' + separator + titlePrefix + appendContent.trim();
+          
+          updatedTexts[fileIndex].content = newContent;
+          setSavedTexts(updatedTexts);
+          localStorage.setItem('savedTexts', JSON.stringify(updatedTexts));
+          
+          // 如果当前正在阅读这个文件，更新格式化文本
+          if (selectedSavedText === fileIndex) {
+            const sentences = splitIntoSentences(newContent);
+            setFormattedText(sentences);
+          }
+        }
+        
+        // 3秒后自动关闭模态框
+        setTimeout(() => {
+          setIsAppendModalOpen(false);
+          setAppendContent('');
+          setAppendTitle('');
+          setAppendResult(null);
+        }, 3000);
+      } else {
+        // 显示错误消息
+        setAppendResult({
+          success: false,
+          message: result.message || '追加内容失败，请重试',
+        });
+      }
+    } catch (error) {
+      console.error('追加内容时发生错误:', error);
+      setAppendResult({
+        success: false,
+        message: '网络错误，请检查连接后重试',
+      });
+    } finally {
+      setIsAppending(false);
     }
   };
 
@@ -3584,6 +3671,20 @@ export default function Home() {
                           阅读
                         </button>
                         <button
+                          onClick={(e) => { 
+                            e.stopPropagation(); 
+                            // 打开追加内容模态框
+                            setAppendingToFile(item);
+                            setAppendContent('');
+                            setAppendTitle('');
+                            setAppendResult(null);
+                            setIsAppendModalOpen(true);
+                          }}
+                          style={{...styles.gridActionButton(isDark), backgroundColor: isDark ? '#5856d6' : '#5e5ce6'}}
+                        >
+                          追加
+                        </button>
+                        <button
                           onClick={(e) => { e.stopPropagation(); setShowXPopup(true); }}
                           style={styles.gridActionButton(isDark)}
                         >
@@ -3618,6 +3719,10 @@ export default function Home() {
               from { opacity: 0.8; }
               to { opacity: 0; }
             }
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
             
             /* 移动设备适配样式 */
             @media (max-width: 480px) {
@@ -3644,6 +3749,208 @@ export default function Home() {
           originalIndex={searchStartIndex}
           onJumpToSentence={handleJumpToSentence}
         />
+      )}
+      
+      {/* 追加内容模态框 */}
+      {isAppendModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            width: '90%',
+            maxWidth: '500px',
+            backgroundColor: isDark ? '#1c1c1e' : '#ffffff',
+            borderRadius: '12px',
+            padding: '20px',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            display: 'flex',
+            flexDirection: 'column',
+            maxHeight: '80vh',
+            overflow: 'hidden'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '15px'
+            }}>
+              <h3 style={{
+                margin: 0,
+                color: isDark ? '#ffffff' : '#000000',
+                fontSize: '18px',
+                fontWeight: '600'
+              }}>
+                追加内容到 {appendingToFile?.name}
+              </h3>
+              <button
+                onClick={() => setIsAppendModalOpen(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '20px',
+                  color: isDark ? '#8e8e93' : '#8e8e93',
+                  cursor: 'pointer',
+                  padding: '0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '30px',
+                  height: '30px',
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            {/* 标题输入框 */}
+            <div style={{
+              marginBottom: '15px'
+            }}>
+              <label
+                htmlFor="append-title"
+                style={{
+                  display: 'block',
+                  marginBottom: '5px',
+                  color: isDark ? '#8e8e93' : '#6c757d',
+                  fontSize: '14px'
+                }}
+              >
+                文章标题（可选）
+              </label>
+              <input
+                id="append-title"
+                type="text"
+                value={appendTitle}
+                onChange={(e) => setAppendTitle(e.target.value)}
+                placeholder="输入文章标题"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  border: `1px solid ${isDark ? '#3a3a3c' : '#ced4da'}`,
+                  backgroundColor: isDark ? '#2c2c2e' : '#ffffff',
+                  color: isDark ? '#ffffff' : '#000000',
+                  fontSize: '16px',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+            
+            {/* 内容输入框 */}
+            <div style={{
+              marginBottom: '15px',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column'
+            }}>
+              <label
+                htmlFor="append-content"
+                style={{
+                  display: 'block',
+                  marginBottom: '5px',
+                  color: isDark ? '#8e8e93' : '#6c757d',
+                  fontSize: '14px'
+                }}
+              >
+                追加内容
+              </label>
+              <textarea
+                id="append-content"
+                value={appendContent}
+                onChange={(e) => setAppendContent(e.target.value)}
+                placeholder="输入要追加的内容"
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '8px',
+                  border: `1px solid ${isDark ? '#3a3a3c' : '#ced4da'}`,
+                  backgroundColor: isDark ? '#2c2c2e' : '#ffffff',
+                  color: isDark ? '#ffffff' : '#000000',
+                  fontSize: '16px',
+                  resize: 'none',
+                  flex: 1,
+                  minHeight: '200px',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+            
+            {/* 结果消息 */}
+            {appendResult && (
+              <div style={{
+                padding: '10px',
+                borderRadius: '8px',
+                backgroundColor: appendResult.success 
+                  ? (isDark ? 'rgba(48, 209, 88, 0.2)' : 'rgba(52, 199, 89, 0.2)') 
+                  : (isDark ? 'rgba(255, 69, 58, 0.2)' : 'rgba(255, 59, 48, 0.2)'),
+                marginBottom: '15px',
+                color: appendResult.success 
+                  ? (isDark ? '#30d158' : '#34c759') 
+                  : (isDark ? '#ff453a' : '#ff3b30'),
+                fontSize: '14px'
+              }}>
+                {appendResult.message}
+              </div>
+            )}
+            
+            {/* 按钮区域 */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '10px'
+            }}>
+              <button
+                onClick={() => setIsAppendModalOpen(false)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: isDark ? '#3a3a3c' : '#e5e5ea',
+                  color: isDark ? '#ffffff' : '#000000',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAppendContent}
+                disabled={!appendContent.trim() || isAppending}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: isDark ? '#5856d6' : '#5e5ce6',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: !appendContent.trim() || isAppending ? 'not-allowed' : 'pointer',
+                  opacity: !appendContent.trim() || isAppending ? 0.7 : 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px'
+                }}
+              >
+                {isAppending ? (
+                  <>
+                    <span style={{ display: 'inline-block', width: '14px', height: '14px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#ffffff', animation: 'spin 1s linear infinite' }}></span>
+                    处理中...
+                  </>
+                ) : '确认追加'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       
       {/* 笔记本模态框 - 使用已定义的notebookModal变量 */}
