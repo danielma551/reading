@@ -1266,6 +1266,41 @@ export default function Home() {
     setAppendResult(null);
     
     try {
+          // 我们不需要检查上传的文件是否存在，而是要检查要追加内容的目标文件是否存在
+      // 检查目标文件是否存在于服务器上
+      const checkFileExists = async (filename) => {
+        try {
+          // 使用列表API检查文件是否存在
+          const response = await fetch(`/api/list-text-files?_t=${new Date().getTime()}&_r=${Math.random()}`, {
+            method: 'GET',
+            headers: {
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            },
+            cache: 'no-store'
+          });
+          
+          if (!response.ok) {
+            throw new Error('无法获取文件列表');
+          }
+          
+          const data = await response.json();
+          console.log('服务器文件列表:', data.files);
+          console.log('要查找的文件名:', filename);
+          // 确保文件名比较是不区分大小写的
+          return data.files && Array.isArray(data.files) && 
+            data.files.some(file => file.toLowerCase() === filename.toLowerCase());
+        } catch (error) {
+          console.error('检查文件存在时出错:', error);
+          return false;
+        }
+      };
+      
+      // 这里不再检查目标文件是否存在，因为我们已经有了文件对象
+      // 如果文件不存在，API端点会处理这个问题
+      console.log('准备追加内容到文件:', appendingToFile.name);
+      
       const response = await fetch('/api/append-to-text', {
         method: 'POST',
         headers: {
@@ -1316,6 +1351,10 @@ export default function Home() {
           setAppendContent('');
           setAppendTitle('');
           setAppendResult(null);
+          setAppendFileContent(null);
+          if (appendFileInputRef.current) {
+            appendFileInputRef.current.value = '';
+          }
         }, 3000);
       } else {
         // 显示错误消息
@@ -3910,34 +3949,32 @@ export default function Home() {
                 borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
                 marginBottom: '10px'
               }}>
-                <button
+                <div
                   onClick={() => setAppendFileContent(null)}
                   style={{
-                    padding: '8px 16px',
-                    backgroundColor: 'transparent',
-                    border: 'none',
+                    padding: '10px 15px',
+                    cursor: 'pointer',
                     borderBottom: !appendFileContent ? `2px solid ${isDark ? '#5856d6' : '#5e5ce6'}` : 'none',
                     color: !appendFileContent ? (isDark ? '#ffffff' : '#000000') : (isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'),
                     fontWeight: !appendFileContent ? '600' : '400',
-                    cursor: 'pointer'
+                    marginBottom: !appendFileContent ? '-1px' : '0'
                   }}
                 >
-                  手动输入
-                </button>
-                <button
+                  手动输入追加内容
+                </div>
+                <div
                   onClick={() => appendFileInputRef.current?.click()}
                   style={{
-                    padding: '8px 16px',
-                    backgroundColor: 'transparent',
-                    border: 'none',
+                    padding: '10px 15px',
+                    cursor: 'pointer',
                     borderBottom: appendFileContent ? `2px solid ${isDark ? '#5856d6' : '#5e5ce6'}` : 'none',
                     color: appendFileContent ? (isDark ? '#ffffff' : '#000000') : (isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'),
                     fontWeight: appendFileContent ? '600' : '400',
-                    cursor: 'pointer'
+                    marginBottom: appendFileContent ? '-1px' : '0'
                   }}
                 >
-                  上传文件
-                </button>
+                  上传文件内容
+                </div>
                 <input 
                   type="file"
                   ref={appendFileInputRef}
@@ -3988,6 +4025,17 @@ export default function Home() {
                   display: 'flex',
                   flexDirection: 'column'
                 }}>
+                  <div style={{
+                    fontSize: '14px',
+                    color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)',
+                    marginBottom: '10px',
+                    textAlign: 'center',
+                    padding: '5px',
+                    backgroundColor: isDark ? 'rgba(88,86,214,0.1)' : 'rgba(94,92,230,0.05)',
+                    borderRadius: '4px'
+                  }}>
+                    文件内容将被追加到 <b>{appendingToFile?.name}</b>
+                  </div>
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -4094,6 +4142,13 @@ export default function Home() {
                           `\n\n[文件内容过长，共 ${appendContent.length} 字符，仅显示前 500 字符]` : 
                           appendContent}
                       </pre>
+                      <div style={{
+                        fontSize: '12px',
+                        color: isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)',
+                        marginTop: '10px'
+                      }}>
+                        上传的文件内容将被追加到目标文件中。
+                      </div>
                     </div>
                   )}
                   
@@ -4118,7 +4173,7 @@ export default function Home() {
                       }}
                     >
                       <span style={{ fontSize: '16px' }}>⬆️</span>
-                      重新选择文件
+                      重新选择要追加的文件
                     </button>
                   </div>
                 </div>

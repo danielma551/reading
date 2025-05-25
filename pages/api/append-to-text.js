@@ -27,9 +27,13 @@ export default async function handler(req, res) {
     }
 
     // 清理文件名，防止路径遍历攻击
+    console.log('原始文件名:', filename);
     const safeFilename = path.basename(filename.replace(/[\/]|\.\./g, ''));
+    console.log('处理后的文件名:', safeFilename);
+    
     if (!safeFilename || !safeFilename.endsWith('.txt')) {
       // 确保文件名有效且是 txt 文件
+      console.error('无效的文件名或非 .txt 文件:', safeFilename);
       return res.status(400).json({ message: '无效的文件名或非 .txt 文件' });
     }
 
@@ -44,8 +48,17 @@ export default async function handler(req, res) {
     }
 
     // 检查文件是否存在
+    console.log('检查文件是否存在:', filePath);
     if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: '文件不存在' });
+      console.log('文件不存在，将创建新文件');
+      // 如果文件不存在，创建一个空文件
+      try {
+        fs.writeFileSync(filePath, '', 'utf8');
+        console.log('成功创建新文件:', filePath);
+      } catch (createError) {
+        console.error('创建新文件失败:', createError);
+        return res.status(500).json({ message: '服务器内部错误：无法创建文件' });
+      }
     }
 
     // 使用文件锁防止并发写入
@@ -58,9 +71,15 @@ export default async function handler(req, res) {
 
     try {
       // 读取现有文件内容
-      let existingContent;
+      let existingContent = '';
       try {
-        existingContent = await fs.promises.readFile(filePath, 'utf8');
+        // 如果文件存在且有内容，读取内容
+        if (fs.existsSync(filePath) && fs.statSync(filePath).size > 0) {
+          existingContent = await fs.promises.readFile(filePath, 'utf8');
+          console.log(`读取到文件内容，长度: ${existingContent.length} 字符`);
+        } else {
+          console.log('文件为空或刚创建，使用空字符串作为现有内容');
+        }
       } catch (readError) {
         console.error(`读取文件失败: ${filePath}`, readError);
         return res.status(500).json({ message: '服务器内部错误：无法读取文件' });
