@@ -185,6 +185,10 @@ export default function Home() {
   const [appendingToFile, setAppendingToFile] = useState(null);
   const [isAppending, setIsAppending] = useState(false);
   const [appendResult, setAppendResult] = useState(null);
+  const [appendFileContent, setAppendFileContent] = useState(null);
+  const [isLoadingFile, setIsLoadingFile] = useState(false);
+  const [fileError, setFileError] = useState(null);
+  const appendFileInputRef = useRef(null); // 文件输入控件的引用
   const [showSaveConfirmation, setShowSaveConfirmation] = useState(false); // 新增：控制保存句子后的确认状态
   const [showXPopup, setShowXPopup] = useState(false); // 新增：X按钮弹出页面状态
   const [weeklyReadingStats, setWeeklyReadingStats] = useState({}); // 新增：存储近七天阅读统计
@@ -1204,6 +1208,55 @@ export default function Home() {
   };
   
   // 处理追加内容函数已经添加到下面
+  
+  // 处理文件上传
+  const handleAppendFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    // 检查文件类型
+    if (!file.name.toLowerCase().endsWith('.txt')) {
+      setFileError('只支持 .txt 文件格式');
+      setAppendFileContent({ name: file.name });
+      return;
+    }
+    
+    // 检查文件大小
+    const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+    if (file.size > MAX_FILE_SIZE) {
+      setFileError(`文件过大，最大支持 1MB，当前文件大小 ${(file.size / 1024).toFixed(2)}KB`);
+      setAppendFileContent({ name: file.name });
+      return;
+    }
+    
+    // 开始读取文件
+    setIsLoadingFile(true);
+    setFileError(null);
+    setAppendFileContent({ name: file.name });
+    
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const content = e.target.result;
+        setAppendContent(content);
+        setIsLoadingFile(false);
+      } catch (error) {
+        console.error('读取文件内容失败:', error);
+        setFileError('读取文件内容失败，请检查文件格式');
+        setIsLoadingFile(false);
+      }
+    };
+    
+    reader.onerror = () => {
+      console.error('读取文件时发生错误');
+      setFileError('读取文件时发生错误，请重试');
+      setIsLoadingFile(false);
+    };
+    
+    // 以文本格式读取文件
+    reader.readAsText(file, 'UTF-8');
+  };
   
   // 处理追加内容
   const handleAppendContent = async () => {
@@ -3845,43 +3898,231 @@ export default function Home() {
               />
             </div>
             
-            {/* 内容输入框 */}
+            {/* 内容输入选项卡 */}
             <div style={{
               marginBottom: '15px',
               flex: 1,
               display: 'flex',
               flexDirection: 'column'
             }}>
-              <label
-                htmlFor="append-content"
-                style={{
-                  display: 'block',
-                  marginBottom: '5px',
-                  color: isDark ? '#8e8e93' : '#6c757d',
-                  fontSize: '14px'
-                }}
-              >
-                追加内容
-              </label>
-              <textarea
-                id="append-content"
-                value={appendContent}
-                onChange={(e) => setAppendContent(e.target.value)}
-                placeholder="输入要追加的内容"
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  borderRadius: '8px',
-                  border: `1px solid ${isDark ? '#3a3a3c' : '#ced4da'}`,
-                  backgroundColor: isDark ? '#2c2c2e' : '#ffffff',
-                  color: isDark ? '#ffffff' : '#000000',
-                  fontSize: '16px',
-                  resize: 'none',
+              <div style={{
+                display: 'flex',
+                borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                marginBottom: '10px'
+              }}>
+                <button
+                  onClick={() => setAppendFileContent(null)}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderBottom: !appendFileContent ? `2px solid ${isDark ? '#5856d6' : '#5e5ce6'}` : 'none',
+                    color: !appendFileContent ? (isDark ? '#ffffff' : '#000000') : (isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'),
+                    fontWeight: !appendFileContent ? '600' : '400',
+                    cursor: 'pointer'
+                  }}
+                >
+                  手动输入
+                </button>
+                <button
+                  onClick={() => appendFileInputRef.current?.click()}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderBottom: appendFileContent ? `2px solid ${isDark ? '#5856d6' : '#5e5ce6'}` : 'none',
+                    color: appendFileContent ? (isDark ? '#ffffff' : '#000000') : (isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)'),
+                    fontWeight: appendFileContent ? '600' : '400',
+                    cursor: 'pointer'
+                  }}
+                >
+                  上传文件
+                </button>
+                <input 
+                  type="file"
+                  ref={appendFileInputRef}
+                  accept=".txt"
+                  style={{ display: 'none' }}
+                  onChange={handleAppendFileChange}
+                />
+              </div>
+              
+              {!appendFileContent ? (
+                // 手动输入模式
+                <>
+                  <label
+                    htmlFor="append-content"
+                    style={{
+                      display: 'block',
+                      marginBottom: '5px',
+                      color: isDark ? '#8e8e93' : '#6c757d',
+                      fontSize: '14px'
+                    }}
+                  >
+                    追加内容
+                  </label>
+                  <textarea
+                    id="append-content"
+                    value={appendContent}
+                    onChange={(e) => setAppendContent(e.target.value)}
+                    placeholder="输入要追加的内容"
+                    style={{
+                      width: '100%',
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDark ? '#3a3a3c' : '#ced4da'}`,
+                      backgroundColor: isDark ? '#2c2c2e' : '#ffffff',
+                      color: isDark ? '#ffffff' : '#000000',
+                      fontSize: '16px',
+                      resize: 'none',
+                      flex: 1,
+                      minHeight: '200px',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </>
+              ) : (
+                // 文件上传模式
+                <div style={{
                   flex: 1,
-                  minHeight: '200px',
-                  boxSizing: 'border-box'
-                }}
-              />
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    marginBottom: '10px'
+                  }}>
+                    <span style={{
+                      color: isDark ? '#8e8e93' : '#6c757d',
+                      fontSize: '14px',
+                      marginRight: '10px'
+                    }}>
+                      已选择文件:
+                    </span>
+                    <span style={{
+                      color: isDark ? '#ffffff' : '#000000',
+                      fontSize: '14px',
+                      fontWeight: '500'
+                    }}>
+                      {appendFileContent?.name || '无'}
+                    </span>
+                    <button
+                      onClick={() => {
+                        setAppendFileContent(null);
+                        setFileError(null);
+                        if (appendFileInputRef.current) {
+                          appendFileInputRef.current.value = '';
+                        }
+                      }}
+                      style={{
+                        marginLeft: 'auto',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        color: isDark ? '#ff453a' : '#ff3b30',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        padding: '4px 8px',
+                        borderRadius: '4px'
+                      }}
+                    >
+                      清除
+                    </button>
+                  </div>
+                  
+                  {isLoadingFile ? (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '20px',
+                      backgroundColor: isDark ? 'rgba(30,30,30,0.5)' : 'rgba(240,240,245,0.5)',
+                      borderRadius: '8px',
+                      flex: 1
+                    }}>
+                      <span style={{ display: 'inline-block', width: '20px', height: '20px', borderRadius: '50%', border: '2px solid rgba(128,128,128,0.3)', borderTopColor: isDark ? '#ffffff' : '#000000', animation: 'spin 1s linear infinite', marginRight: '10px' }}></span>
+                      <span style={{ color: isDark ? '#ffffff' : '#000000' }}>正在读取文件...</span>
+                    </div>
+                  ) : fileError ? (
+                    <div style={{
+                      padding: '20px',
+                      backgroundColor: isDark ? 'rgba(255,69,58,0.1)' : 'rgba(255,59,48,0.1)',
+                      borderRadius: '8px',
+                      color: isDark ? '#ff453a' : '#ff3b30',
+                      fontSize: '14px',
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      <div style={{ marginBottom: '10px' }}>错误: {fileError}</div>
+                      <button
+                        onClick={() => appendFileInputRef.current?.click()}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                          border: 'none',
+                          borderRadius: '8px',
+                          color: isDark ? '#ffffff' : '#000000',
+                          fontSize: '14px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        重新选择文件
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{
+                      padding: '10px',
+                      backgroundColor: isDark ? 'rgba(30,30,30,0.5)' : 'rgba(240,240,245,0.5)',
+                      borderRadius: '8px',
+                      flex: 1,
+                      overflow: 'auto',
+                      maxHeight: '200px'
+                    }}>
+                      <pre style={{
+                        margin: 0,
+                        color: isDark ? '#ffffff' : '#000000',
+                        fontSize: '14px',
+                        fontFamily: 'monospace',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word'
+                      }}>
+                        {appendContent.length > 500 ? 
+                          appendContent.substring(0, 500) + '...' + 
+                          `\n\n[文件内容过长，共 ${appendContent.length} 字符，仅显示前 500 字符]` : 
+                          appendContent}
+                      </pre>
+                    </div>
+                  )}
+                  
+                  <div style={{
+                    marginTop: '10px',
+                    display: 'flex',
+                    justifyContent: 'center'
+                  }}>
+                    <button
+                      onClick={() => appendFileInputRef.current?.click()}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: isDark ? 'rgba(88,86,214,0.2)' : 'rgba(94,92,230,0.1)',
+                        border: `1px solid ${isDark ? '#5856d6' : '#5e5ce6'}`,
+                        borderRadius: '8px',
+                        color: isDark ? '#5856d6' : '#5e5ce6',
+                        fontSize: '14px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}
+                    >
+                      <span style={{ fontSize: '16px' }}>⬆️</span>
+                      重新选择文件
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* 结果消息 */}
@@ -3925,7 +4166,7 @@ export default function Home() {
               </button>
               <button
                 onClick={handleAppendContent}
-                disabled={!appendContent.trim() || isAppending}
+                disabled={!appendContent.trim() || isAppending || (appendFileContent && fileError)}
                 style={{
                   padding: '8px 16px',
                   borderRadius: '8px',
