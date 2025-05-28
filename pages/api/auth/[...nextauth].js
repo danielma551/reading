@@ -2,10 +2,11 @@ import NextAuth from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 
 // 确定当前环境的URL
-const useSecureProtocol = process.env.VERCEL === '1';
-const baseUrl = process.env.NEXTAUTH_URL || (useSecureProtocol 
-  ? 'https://reading-self.vercel.app' 
-  : 'http://localhost:3002');
+// 使用 NEXTAUTH_URL 环境变量，如果未设置则根据环境自动检测
+const baseUrl = process.env.NEXTAUTH_URL || 
+  (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production'
+    ? 'https://reading-self.vercel.app' 
+    : 'http://localhost:3000');
 
 export default NextAuth({
   // 设置站点URL

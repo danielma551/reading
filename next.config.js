@@ -10,7 +10,16 @@ const nextConfig = {
   // 图像优化设置
   images: {
     unoptimized: false, // 让Vercel优化图像
-    domains: ['vercel.com'], // 允许从Vercel域名加载图像
+    domains: ['vercel.com', 'lh3.googleusercontent.com'], // 允许从其他域名加载图像
+  },
+  // 开启热重载功能
+  webpackDevMiddleware: config => {
+    config.watchOptions = {
+      poll: 1000, // 检查文件变化的间隔（毫秒）
+      aggregateTimeout: 300, // 延迟重新构建的时间（毫秒）
+      ignored: ['node_modules']
+    }
+    return config
   },
   // 确保正确处理API路由
   async rewrites() {

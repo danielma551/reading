@@ -15,8 +15,24 @@ export default async function handler(req, res) {
   // 获取用户会话
   const session = await getSession({ req });
   
+  // 检查是否在 Vercel 环境中运行
+  const isVercelEnv = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
+  
   if (!session) {
-    return res.status(401).json({ message: '未授权，请先登录' });
+    // 在生产环境中返回未授权错误
+    return res.status(401).json({ 
+      message: '未授权，请先登录',
+      env: isVercelEnv ? 'production' : 'development'
+    });
+  }
+  
+  // 确保 session 包含 accessToken
+  if (!session.accessToken) {
+    console.error('会话中缺少 accessToken');
+    return res.status(401).json({ 
+      message: '会话信息不完整，请重新登录',
+      env: isVercelEnv ? 'production' : 'development'
+    });
   }
   
   if (req.method !== 'POST') {

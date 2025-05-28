@@ -13,7 +13,16 @@ export default function SyncButton({ onSyncComplete }) {
   
   // 处理同步操作
   const handleSync = async (action = 'sync') => {
+    // 检查是否已登录
     if (!session) {
+      console.log('未登录，将重定向到登录页面');
+      signIn('google');
+      return;
+    }
+    
+    // 检查是否有访问令牌
+    if (!session.accessToken) {
+      console.error('会话中缺少 accessToken，需要重新登录');
       signIn('google');
       return;
     }
@@ -22,6 +31,9 @@ export default function SyncButton({ onSyncComplete }) {
     setSyncResult(null);
     
     try {
+      // 添加调试信息
+      console.log('发送同步请求，操作:', action);
+      
       const response = await fetch('/api/sync-files', {
         method: 'POST',
         headers: {
