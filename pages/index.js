@@ -159,6 +159,8 @@ export default function Home() {
   const [selectedFont, setSelectedFont] = useState('cangerJinKai'); // 默认使用仓耳今楷字体
   // 新增：自定义字体状态
   const [customFonts, setCustomFonts] = useState([]);
+  // 获取会话状态 - 移到组件顶层
+  const { data: session } = useSession();
   const cardSize = 25; // 每组卡片的数量
   // 新增：加载状态
   const [isLoading, setIsLoading] = useState(false);
@@ -1213,9 +1215,7 @@ export default function Home() {
   const handleAppendContent = async () => {
     if (!appendContent.trim() || !appendingToFile) return;
     
-    // 获取会话状态
-    const { data: session } = useSession();
-    
+    // 使用组件顶层的 session 变量
     // 检查是否在 Vercel 环境中运行（通过检查域名）
     const isVercelEnv = typeof window !== 'undefined' && 
       (window.location.hostname === 'reading-self.vercel.app' || 
