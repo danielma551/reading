@@ -3,7 +3,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
 import SearchModal from '../components/SearchModal';
 import SyncButton from '../components/SyncButton';
-import { groupConsecutiveSentences } from '../utils/sentence-grouper'; 
+import { groupConsecutiveSentences } from '../utils/sentence-grouper';
+import { useSession, signIn } from 'next-auth/react'; 
 
 // 辅助函数：将文本切分成句子（改进版，更健壮）
 const splitIntoSentences = (text) => {
@@ -1208,7 +1209,110 @@ export default function Home() {
     }
   };
   
-  // 处理追加内容函数已经添加到下面
+  // 处理追加内容
+  const handleAppendContent = async () => {
+    if (!appendContent.trim() || !appendingToFile) return;
+    
+    // 获取会话状态
+    const { data: session } = useSession();
+    
+    // 检查是否在 Vercel 环境中运行（通过检查域名）
+    const isVercelEnv = typeof window !== 'undefined' && 
+      (window.location.hostname === 'reading-self.vercel.app' || 
+       window.location.hostname.endsWith('.vercel.app'));
+    
+    setIsAppending(true);
+    setAppendResult(null);
+    
+    try {
+      // 这里不再检查目标文件是否存在，因为我们已经有了文件对象
+      // 如果文件不存在，API端点会处理这个问题
+      console.log('准备追加内容到文件:', appendingToFile.name);
+      
+      const response = await fetch('/api/append-to-text', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // 添加授权头，确保会话信息正确传递
+          'Authorization': session ? `Bearer ${session.accessToken}` : '',
+        },
+        body: JSON.stringify({
+          filename: appendingToFile.name,
+          content: appendContent.trim(),
+          title: appendTitle.trim() || undefined,
+        }),
+        // 确保包含凭据
+        credentials: 'include',
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        // 更新成功消息
+        setAppendResult({
+          success: true,
+          message: `成功追加了 ${result.addedContentLength || appendContent.length} 个字符到文件`,
+        });
+        
+        // 更新本地文件内容
+        const updatedTexts = [...savedTexts];
+        const fileIndex = updatedTexts.findIndex(text => text.name === appendingToFile.name);
+        
+        if (fileIndex >= 0) {
+          // 添加分隔符和新内容
+          const separator = '\n\n---\n\n';
+          const titlePrefix = appendTitle.trim() ? `【${appendTitle.trim()}】\n\n` : '';
+          const newContent = updatedTexts[fileIndex].content.endsWith('\n')
+            ? updatedTexts[fileIndex].content + separator + titlePrefix + appendContent.trim()
+            : updatedTexts[fileIndex].content + '\n' + separator + titlePrefix + appendContent.trim();
+          
+          updatedTexts[fileIndex].content = newContent;
+          setSavedTexts(updatedTexts);
+          localStorage.setItem('savedTexts', JSON.stringify(updatedTexts));
+          
+          // 如果当前正在阅读这个文件，更新格式化文本
+          if (selectedSavedText === fileIndex) {
+            const sentences = splitIntoSentences(newContent);
+            setFormattedText(sentences);
+          }
+        }
+        
+        // 3秒后自动关闭模态框
+        setTimeout(() => {
+          setIsAppendModalOpen(false);
+          setAppendContent('');
+          setAppendTitle('');
+          setAppendResult(null);
+          setAppendFileContent(null);
+          if (appendFileInputRef.current) {
+            appendFileInputRef.current.value = '';
+          }
+        }, 3000);
+      } else {
+        // 显示错误消息
+        if (result.message === '在 Vercel 环境中需要登录才能追加内容') {
+          // 如果是未授权错误，提示登录
+          setAppendResult({
+            success: false,
+            message: '需要登录才能追加内容，请先登录',
+          });
+        } else {
+          setAppendResult({
+            success: false,
+            message: result.message || '追加内容失败，请重试',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('追加内容时发生错误:', error);
+      setAppendResult({
+        success: false,
+        message: '网络错误，请检查连接后重试',
+      });
+    } finally {
+      setIsAppending(false);
+    }
+  };
   
   // 处理文件上传
   const handleAppendFileChange = (event) => {
@@ -1258,122 +1362,7 @@ export default function Home() {
     // 以文本格式读取文件
     reader.readAsText(file, 'UTF-8');
   };
-  
-  // 处理追加内容
-  const handleAppendContent = async () => {
-    if (!appendContent.trim() || !appendingToFile) return;
-    
-    setIsAppending(true);
-    setAppendResult(null);
-    
-    try {
-          // 我们不需要检查上传的文件是否存在，而是要检查要追加内容的目标文件是否存在
-      // 检查目标文件是否存在于服务器上
-      const checkFileExists = async (filename) => {
-        try {
-          // 使用列表API检查文件是否存在
-          const response = await fetch(`/api/list-text-files?_t=${new Date().getTime()}&_r=${Math.random()}`, {
-            method: 'GET',
-            headers: {
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0'
-            },
-            cache: 'no-store'
-          });
-          
-          if (!response.ok) {
-            throw new Error('无法获取文件列表');
-          }
-          
-          const data = await response.json();
-          console.log('服务器文件列表:', data.files);
-          console.log('要查找的文件名:', filename);
-          // 确保文件名比较是不区分大小写的
-          return data.files && Array.isArray(data.files) && 
-            data.files.some(file => file.toLowerCase() === filename.toLowerCase());
-        } catch (error) {
-          console.error('检查文件存在时出错:', error);
-          return false;
-        }
-      };
-      
-      // 这里不再检查目标文件是否存在，因为我们已经有了文件对象
-      // 如果文件不存在，API端点会处理这个问题
-      console.log('准备追加内容到文件:', appendingToFile.name);
-      
-      const response = await fetch('/api/append-to-text', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          filename: appendingToFile.name,
-          content: appendContent.trim(),
-          title: appendTitle.trim() || undefined,
-        }),
-      });
-      
-      const result = await response.json();
-      
-      if (response.ok) {
-        // 更新成功消息
-        setAppendResult({
-          success: true,
-          message: `成功追加了 ${result.addedContentLength || appendContent.length} 个字符到文件`,
-        });
-        
-        // 更新本地文件内容
-        const updatedTexts = [...savedTexts];
-        const fileIndex = updatedTexts.findIndex(text => text.name === appendingToFile.name);
-        
-        if (fileIndex >= 0) {
-          // 添加分隔符和新内容
-          const separator = '\n\n---\n\n';
-          const titlePrefix = appendTitle.trim() ? `【${appendTitle.trim()}】\n\n` : '';
-          const newContent = updatedTexts[fileIndex].content.endsWith('\n')
-            ? updatedTexts[fileIndex].content + separator + titlePrefix + appendContent.trim()
-            : updatedTexts[fileIndex].content + '\n' + separator + titlePrefix + appendContent.trim();
-          
-          updatedTexts[fileIndex].content = newContent;
-          setSavedTexts(updatedTexts);
-          localStorage.setItem('savedTexts', JSON.stringify(updatedTexts));
-          
-          // 如果当前正在阅读这个文件，更新格式化文本
-          if (selectedSavedText === fileIndex) {
-            const sentences = splitIntoSentences(newContent);
-            setFormattedText(sentences);
-          }
-        }
-        
-        // 3秒后自动关闭模态框
-        setTimeout(() => {
-          setIsAppendModalOpen(false);
-          setAppendContent('');
-          setAppendTitle('');
-          setAppendResult(null);
-          setAppendFileContent(null);
-          if (appendFileInputRef.current) {
-            appendFileInputRef.current.value = '';
-          }
-        }, 3000);
-      } else {
-        // 显示错误消息
-        setAppendResult({
-          success: false,
-          message: result.message || '追加内容失败，请重试',
-        });
-      }
-    } catch (error) {
-      console.error('追加内容时发生错误:', error);
-      setAppendResult({
-        success: false,
-        message: '网络错误，请检查连接后重试',
-      });
-    } finally {
-      setIsAppending(false);
-    }
-  };
+
 
   const loadSavedText = (index) => {
     if (selectedSavedText === index) return; // 避免重复加载同一文本

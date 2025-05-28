@@ -1,7 +1,15 @@
 import NextAuth from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 
+// 确定当前环境的URL
+const useSecureProtocol = process.env.VERCEL === '1';
+const baseUrl = process.env.NEXTAUTH_URL || (useSecureProtocol 
+  ? 'https://reading-self.vercel.app' 
+  : 'http://localhost:3002');
+
 export default NextAuth({
+  // 设置站点URL
+  site: baseUrl,
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -34,4 +42,9 @@ export default NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: true,
+  // 设置自定义页面
+  pages: {
+    signIn: '/auth/signin',
+    error: '/auth/error',
+  },
 });
