@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { getSavedSentences, saveSentence, deleteSentence } from '../utils/sentence-saver';
 import SearchModal from '../components/SearchModal';
+import SyncButton from '../components/SyncButton';
 import { groupConsecutiveSentences } from '../utils/sentence-grouper'; 
 
 // 辅助函数：将文本切分成句子（改进版，更健壮）
@@ -3665,10 +3666,15 @@ export default function Home() {
           {savedTexts.length > 0 && (
             <div style={styles.listSection}>
               <div style={styles.listTitle}>
-                <span>我的文档</span>
-                <span style={{fontSize: '13px', color: isDark ? '#8e8e93' : '#8e8e93'}}>
-                  {savedTexts.length}个文件
-                </span>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%'}}>
+                  <div>
+                    <span>我的文档</span>
+                    <span style={{fontSize: '13px', color: isDark ? '#8e8e93' : '#8e8e93', marginLeft: '8px'}}>
+                      {savedTexts.length}个文件
+                    </span>
+                  </div>
+                  <SyncButton />
+                </div>
               </div>
               
               <div style={styles.gridContainer}>
