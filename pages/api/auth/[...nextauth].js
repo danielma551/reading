@@ -8,6 +8,12 @@ const baseUrl = process.env.NEXTAUTH_URL ||
     ? 'https://reading-self.vercel.app' 
     : 'http://localhost:3000');
 
+// 添加调试日志
+console.log('NextAuth 初始化，环境变量检查:');
+console.log('NEXTAUTH_URL:', process.env.NEXTAUTH_URL);
+console.log('GOOGLE_CLIENT_ID 存在:', !!process.env.GOOGLE_CLIENT_ID);
+console.log('GOOGLE_CLIENT_SECRET 存在:', !!process.env.GOOGLE_CLIENT_SECRET);
+
 export default NextAuth({
   // 设置站点URL
   site: baseUrl,
@@ -43,9 +49,4 @@ export default NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: true,
-  // 设置自定义页面
-  pages: {
-    signIn: '/auth/signin',
-    error: '/auth/error',
-  },
 });

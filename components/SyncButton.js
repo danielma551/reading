@@ -231,7 +231,10 @@ export default function SyncButton({ onSyncComplete }) {
         </div>
       ) : (
         <button 
-          onClick={() => signIn('google')} 
+          onClick={() => {
+            console.log('尝试使用 Google 登录...');
+            signIn('google', { callbackUrl: window.location.origin });
+          }} 
           style={{
             backgroundColor: 'white',
             color: '#444',
