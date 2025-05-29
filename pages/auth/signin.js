@@ -59,7 +59,14 @@ export default function SignIn({ providers }) {
           {Object.values(providers || {}).map((provider) => (
             <div key={provider.name} className="text-center">
               <button
-                onClick={() => signIn(provider.id, { callbackUrl: "/" })}
+                onClick={() => {
+                  console.log(`尝试使用 ${provider.name} 登录...`);
+                  // 使用完整的URL作为回调地址
+                  const callbackUrl = typeof window !== 'undefined' 
+                    ? window.location.origin 
+                    : 'https://reading-self.vercel.app';
+                  signIn(provider.id, { callbackUrl });
+                }}
                 className="w-full rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
               >
                 使用 {provider.name} 登录

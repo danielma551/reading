@@ -16,7 +16,7 @@ console.log('GOOGLE_CLIENT_SECRET 存在:', !!process.env.GOOGLE_CLIENT_SECRET);
 
 export default NextAuth({
   // 设置站点URL
-  site: baseUrl,
+  // site: baseUrl, // 这个配置已过时，改用 NEXTAUTH_URL 环境变量
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,

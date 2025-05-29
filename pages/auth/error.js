@@ -8,6 +8,10 @@ export default function Error() {
   const [errorDescription, setErrorDescription] = useState("");
 
   useEffect(() => {
+    // 添加调试日志
+    console.log('错误页面加载，错误代码:', error);
+    console.log('完整查询参数:', router.query);
+    
     if (error) {
       switch (error) {
         case "Configuration":
